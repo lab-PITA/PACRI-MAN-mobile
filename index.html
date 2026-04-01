@@ -1,0 +1,2890 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>PACRI-MAN 3D V6 ULTIMATE</title>
+    <style>
+        /* ==========================================================================
+           CSS RESET & BASE STYLES
+           ========================================================================== */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+        }
+
+        @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+
+        body {
+            background-color: #050505;
+            color: #0ff;
+            font-family: 'Share Tech Mono', monospace;
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
+            touch-action: none;
+        }
+
+        /* ==========================================================================
+           CANVAS LAYERS
+           ========================================================================== */
+       #game-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column; /* 縦に並べる */
+    background: #000;
+}
+
+/* 上半分：3Dカメラエリア */
+#view-area {
+    position: relative;
+    flex: 1; /* 残りのスペースをすべて使う */
+    width: 100%;
+    overflow: hidden;
+    border-bottom: 2px solid #0ff;
+}
+
+/* 下半分：コントロールエリア */
+#control-area {
+    position: relative;
+    height: 40%; /* 下半分の高さを40%に指定 */
+    width: 100%;
+    background: #050505;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* メインキャンバス（view-areaいっぱいに表示） */
+#main-canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+/* レーダー：コントロールエリアの背景として大きく表示 */
+#radar-container {
+    position: absolute;
+    width: 250px;
+    height: 250px;
+    opacity: 0.3; /* 操作の邪魔にならないよう薄く */
+    pointer-events: none;
+    z-index: 5;
+}
+#radar-canvas {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+/* ジョイスティックの見た目 */
+#joystick-container {
+    position: absolute;
+    bottom: 30px;
+    left: 30px;
+    width: 120px;
+    height: 120px;
+    background: rgba(0, 255, 255, 0.1);
+    border: 2px solid rgba(0, 255, 255, 0.4);
+    border-radius: 50%;
+    z-index: 100;
+    pointer-events: auto;
+}
+#joystick-stick {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 50px;
+    height: 50px;
+    background: #0ff;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 0 15px #0ff;
+}
+
+/* 不要なリアカメラは非表示 */
+#rear-camera-container {
+    display: none !important;
+}
+
+/* 下半分の右側に情報を寄せる */
+#status-container {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    min-width: 150px;
+    padding: 10px;
+    z-index: 50;
+}
+#right-status-container {
+    position: absolute;
+    bottom: 20px;
+    right: 20px;
+    z-index: 50;
+}
+
+        /* ==========================================================================
+           UI PANELS (画像デザインの再現)
+           ========================================================================== */
+        .ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 20;
+            pointer-events: none;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .neon-panel {
+            background: rgba(0, 20, 30, 0.4);
+            border: 2px solid #0ff;
+            border-radius: 8px;
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.5), inset 0 0 15px rgba(0, 255, 255, 0.3);
+            backdrop-filter: blur(4px);
+            position: relative;
+        }
+
+        .panel-title {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            text-align: center;
+            font-size: 12px;
+            letter-spacing: 2px;
+            color: #0ff;
+            text-shadow: 0 0 5px #0ff;
+            transform: translateY(-50%);
+            background: #050505;
+            display: inline-block;
+            padding: 0 10px;
+            border-bottom: 1px solid #0ff;
+        }
+
+        /* Top Left: Proximity Radar */
+        #radar-container {
+            position: absolute;
+            top: 30px;
+            left: 30px;
+            width: 200px;
+            height: 200px;
+        }
+        #radar-canvas {
+            width: 100%;
+            height: 100%;
+            border-radius: 6px;
+        }
+
+        /* Top Right: Rear Camera */
+        #rear-camera-container {
+            position: absolute;
+            top: 30px;
+            right: 30px;
+            width: 320px;
+            height: 180px;
+        }
+        #rear-canvas {
+            width: 100%;
+            height: 100%;
+            border-radius: 6px;
+        }
+
+        /* Bottom Left: Status Box */
+        #status-container {
+            position: absolute;
+            bottom: 30px;
+            left: 30px;
+            padding: 20px;
+            min-width: 280px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .status-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .status-label {
+            font-size: 14px;
+            color: #aaa;
+            letter-spacing: 2px;
+        }
+        .status-value-yellow {
+            font-size: 32px;
+            color: #ff0;
+            text-shadow: 0 0 10px #ff0;
+            font-weight: bold;
+        }
+        .status-value-cyan {
+            font-size: 20px;
+            color: #0ff;
+            text-shadow: 0 0 8px #0ff;
+        }
+
+        /* Bottom Right: Hi-Score & Lives */
+        #right-status-container {
+            position: absolute;
+            bottom: 30px;
+            right: 30px;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 15px;
+        }
+        .hi-score-box {
+            border: 1px solid #f0f;
+            border-radius: 20px;
+            padding: 5px 20px;
+            color: #f0f;
+            box-shadow: 0 0 10px rgba(255, 0, 255, 0.4), inset 0 0 5px rgba(255, 0, 255, 0.4);
+            font-size: 14px;
+            letter-spacing: 2px;
+            background: rgba(30, 0, 20, 0.6);
+        }
+        .lives-container {
+            display: flex;
+            gap: 10px;
+            padding: 10px 20px;
+            border-radius: 25px;
+        }
+        .life-icon {
+            width: 24px;
+            height: 24px;
+            background-color: #ff0;
+            border-radius: 50%;
+            clip-path: polygon(100% 74%, 44% 48%, 100% 21%, 100% 0, 0 0, 0 100%, 100% 100%);
+            box-shadow: 0 0 10px #ff0;
+        }
+
+        /* ==========================================================================
+           NOTIFICATIONS & TEXT ANIMATIONS
+           ========================================================================== */
+        #center-text-container {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            z-index: 50;
+            pointer-events: none;
+        }
+        .main-message {
+            font-size: 48px;
+            color: #fff;
+            text-shadow: 0 0 20px #0ff, 0 0 40px #0ff;
+            margin-bottom: 10px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .sub-message {
+            font-size: 20px;
+            color: #ff0;
+            text-shadow: 0 0 10px #ff0;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        #achievement-container {
+            position: absolute;
+            bottom: 150px;
+            right: 30px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            align-items: flex-end;
+            z-index: 60;
+        }
+        .achievement-toast {
+            background: rgba(0, 50, 20, 0.8);
+            border-left: 4px solid #0f0;
+            padding: 10px 20px;
+            color: #fff;
+            font-size: 14px;
+            box-shadow: 0 0 10px rgba(0, 255, 0, 0.3);
+            transform: translateX(120%);
+            transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .achievement-toast.show {
+            transform: translateX(0);
+        }
+        .achievement-icon {
+            color: #0f0;
+            font-size: 20px;
+            text-shadow: 0 0 5px #0f0;
+        }
+
+        /* ==========================================================================
+           SCREENS (START / GAME OVER)
+           ========================================================================== */
+        .overlay-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(8px);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            transition: opacity 0.5s;
+        }
+        .hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        .title-glow {
+            font-size: 64px;
+            color: #fff;
+            text-shadow: 0 0 10px #0ff, 0 0 20px #0ff, 0 0 40px #0ff, 0 0 80px #0ff;
+            margin-bottom: 20px;
+            letter-spacing: 5px;
+        }
+        .btn-start {
+            margin-top: 40px;
+            padding: 15px 40px;
+            font-size: 24px;
+            font-family: inherit;
+            color: #000;
+            background: #0ff;
+            border: none;
+            cursor: pointer;
+            box-shadow: 0 0 15px #0ff;
+            transition: all 0.2s;
+            pointer-events: auto;
+            text-transform: uppercase;
+        }
+        .btn-start:hover {
+            background: #fff;
+            box-shadow: 0 0 25px #fff;
+            transform: scale(1.05);
+        }
+        .btn-start:active {
+            transform: scale(0.95);
+        }
+        .warning-flash {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(255, 0, 0, 0.3);
+            z-index: 40;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.1s;
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <!-- 上半分：3Dビューエリア -->
+    <div id="view-area">
+        <canvas id="main-canvas"></canvas>
+        <div class="scanlines"></div>
+        <div id="damage-flash" class="warning-flash"></div>
+        
+        <!-- 通知と実績 -->
+        <div id="achievement-container"></div>
+        <div id="center-text-container">
+            <div id="msg-main" class="main-message">READY</div>
+            <div id="msg-sub" class="sub-message">ENGAGE!!</div>
+        </div>
+    </div>
+
+    <!-- 下半分：操作エリア -->
+    <div id="control-area">
+        <!-- 背景レーダー -->
+        <div id="radar-container">
+            <canvas id="radar-canvas"></canvas>
+        </div>
+
+        <!-- ジョイスティック -->
+        <div id="joystick-container">
+            <div id="joystick-stick"></div>
+        </div>
+
+        <!-- ステータスUI -->
+        <div id="status-container" class="neon-panel">
+            <div class="status-row">
+                <span class="status-label">SCORE</span>
+                <span id="ui-score" class="status-value-yellow" style="font-size: 24px;">000000</span>
+            </div>
+            <div class="status-row">
+                <span id="ui-dots" class="status-value-cyan">000</span>
+                <span class="status-label">DOTS</span>
+            </div>
+        </div>
+
+        <!-- 残機表示 -->
+        <div id="right-status-container">
+            <div id="ui-lives" class="lives-container"></div>
+        </div>
+    </div>
+
+    <!-- スタート画面 -->
+    <div id="start-screen" class="overlay-screen">
+        <h1 id="screen-title" class="title-glow">PACRI-MAN 3D</h1>
+        <div style="color: #aaa; text-align: center; margin-top: 20px;">
+            Touch Left: Move / Touch Right: Turn
+        </div>
+        <button id="btn-start" class="btn-start">INITIALIZE</button>
+    </div>
+</div>
+
+<script>
+/**
+ * ============================================================================
+ * 3D PAC-MAZE V6 ULTIMATE - PART 1: Core Engine & Systems
+ * ============================================================================
+ */
+
+// ----------------------------------------------------------------------------
+// 1. CONFIGURATION (ゲーム全体の設定定数)
+// ----------------------------------------------------------------------------
+const GAME_CONFIG = {
+    TILE_SIZE: 64,          // 1マスのサイズ（酔い防止のため広め）
+    FOV: Math.PI / 2.5,     // 視野角 (約72度)
+    RENDER_RAY_COUNT: 240,  // レンダリング解像度（負荷と画質のバランス）
+    MAX_DEPTH: 14,          // 描画距離（これ以上遠くは暗闇）
+    
+    // プレイヤー設定
+    PLAYER_SPEED: 180,      // 移動速度 (ピクセル/秒)
+    TURN_SPEED: Math.PI * 2,// 旋回速度 (90度スナップ時のアニメーション用)
+    
+    // ゴースト設定
+    GHOST_SPEED_NORMAL: 80,  // ゴーストの基本速度 (プレイヤーより少し遅い)
+    GHOST_SPEED_CHASE: 120,   // 発見時の追跡速度
+    GHOST_SPEED_SCARED: 80,   // イジケ状態の速度
+    GHOST_SCARED_TIME: 8000,  // イジケ状態の持続時間(ms)
+    
+    // 色設定 (ネオンカラー)
+    COLORS: {
+        CEILING: '#020202',
+        FLOOR: '#0a0a0a',
+        WALL_BASE: '#002233',
+        WALL_LINE: '#00ffff',
+        DOT: '#ffff00',
+        POWER_PELLET: '#00ffaa',
+        ITEM_BOOTS: '#0088ff',
+        ITEM_CLOCK: '#ffffff'
+    },
+    
+    // ゴースト個別の色
+    GHOST_COLORS: {
+        BLINKY: '#ff0000', // 赤: 追跡
+        PINKY:  '#ffb8ff', // ピンク: 先回り
+        INKY:   '#00ffff', // 水色: 挟み撃ち
+        CLYDE:  '#ffb852'  // オレンジ: 気まぐれ
+    }
+};
+
+// ----------------------------------------------------------------------------
+// 2. MATH UTILITIES (算術・便利関数群 - MathUtilsとして統合)
+// ----------------------------------------------------------------------------
+class MathUtils {
+    /** 度数法から弧度法(ラジアン)への変換 */
+    static degToRad(degrees) {
+        return degrees * (Math.PI / 180);
+    }
+
+    /** 弧度法から度数法への変換 */
+    static radToDeg(radians) {
+        return radians * (180 / Math.PI);
+    }
+
+    /** 2点間のユークリッド距離を計算 */
+    static distance(x1, y1, x2, y2) {
+        return Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
+    }
+
+    /** 角度を 0 ～ 2π の範囲に正規化する */
+    static normalizeAngle(angle) {
+        angle = angle % (2 * Math.PI);
+        if (angle < 0) {
+            angle = (2 * Math.PI) + angle;
+        }
+        return angle;
+    }
+
+    /** 線形補間 (Lerp) - アニメーションや滑らかなカメラ移動に利用 */
+    static lerp(start, end, amount) {
+        return start + (end - start) * amount;
+    }
+
+    /** 指定範囲のランダムな整数を生成 */
+    static randomInt(min, max) {
+        return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+
+    /** 配列からランダムな要素を取得 */
+    static randomChoice(arr) {
+        return arr[Math.floor(Math.random() * arr.length)];
+    }
+    
+    /** 2つの矩形(円形近似)の衝突判定 */
+    static checkCollision(x1, y1, r1, x2, y2, r2) {
+        return this.distance(x1, y1, x2, y2) < (r1 + r2);
+    }
+}
+
+// ----------------------------------------------------------------------------
+// 3. INPUT MANAGER (キーボード操作と90度スナップ制御)
+// ----------------------------------------------------------------------------
+
+class InputMgr {
+    constructor() {
+        this.keys = {}; // キーボード互換用
+        this.stickY = 0; // 前後移動量 (-1.0 ～ 1.0)
+        this.swipeDeltaX = 0; // 視点回転量
+        
+        this.touchIdStick = null;
+        this.touchIdSwipe = null;
+        this.stickStartPos = { x: 0, y: 0 };
+        this.lastSwipeX = 0;
+
+        window.addEventListener('touchstart', (e) => this._handleTouch(e), { passive: false });
+        window.addEventListener('touchmove', (e) => this._handleTouch(e), { passive: false });
+        window.addEventListener('touchend', (e) => this._handleTouch(e), { passive: false });
+    }
+
+    _handleTouch(e) {
+        if (e.type === 'touchstart' || e.type === 'touchmove' || e.type === 'touchend') {
+            e.preventDefault();
+        }
+
+        const rect = document.getElementById('joystick-container').getBoundingClientRect();
+        const stickMax = 50;
+
+        if (e.type === 'touchend') {
+            for (let t of e.changedTouches) {
+                if (t.identifier === this.touchIdStick) {
+                    this.touchIdStick = null;
+                    this.stickY = 0;
+                    document.getElementById('joystick-stick').style.transform = 'translate(-50%, -50%)';
+                } else if (t.identifier === this.touchIdSwipe) {
+                    this.touchIdSwipe = null;
+                    this.swipeDeltaX = 0;
+                }
+            }
+            return;
+        }
+
+        for (let t of e.touches) {
+            // ジョイスティック操作
+            const isInsideInitial = (t.clientX >= rect.left && t.clientX <= rect.right && t.clientY >= rect.top && t.clientY <= rect.bottom);
+            
+            if (this.touchIdStick === null && isInsideInitial && e.type === 'touchstart') {
+                this.touchIdStick = t.identifier;
+                this.stickStartPos = { x: t.clientX, y: t.clientY };
+            } else if (t.identifier === this.touchIdStick) {
+                const dy = t.clientY - this.stickStartPos.y;
+                const dist = Math.min(stickMax, Math.abs(dy));
+                this.stickY = -(dy / stickMax); // 上に動かすと正(前進)
+                
+                const visualY = Math.sign(dy) * dist;
+                document.getElementById('joystick-stick').style.transform = `translate(-50%, calc(-50% + ${visualY}px))`;
+            } 
+            // 視点操作 (ジョイスティック以外の指)
+            else if (this.touchIdSwipe === null && e.type === 'touchstart') {
+                this.touchIdSwipe = t.identifier;
+                this.lastSwipeX = t.clientX;
+            } else if (t.identifier === this.touchIdSwipe) {
+                const dx = t.clientX - this.lastSwipeX;
+                this.swipeDeltaX = dx * 0.005; // 回転感度
+                this.lastSwipeX = t.clientX;
+            }
+        }
+    }
+
+    update() {
+        // スワイプ回転量は毎フレーム微調整が必要な場合ここに書く
+    }
+
+    // 互換性維持
+    isDown(code) { return !!this.keys[code]; }
+    isJustPressed(code) { return !!this.keys[code]; }
+}
+
+
+// ----------------------------------------------------------------------------
+// 4. AUDIO ENGINE (Web Audio API & MML Parser)
+// ----------------------------------------------------------------------------
+class AudioEngine {
+    constructor() {
+        this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+        this.masterGain = this.ctx.createGain();
+        this.masterGain.gain.value = 0.3; // 全体の音量調整
+        this.masterGain.connect(this.ctx.destination);
+        
+        this.isMuted = false;
+        
+        // BGM用の発音ノード管理
+        this.bgmOscillators = [];
+        this.isPlayingBgm = false;
+    }
+
+    /** ユーザーアクション(STARTクリック時)にAudioContextを再開する(ブラウザ制限対策) */
+    resume() {
+        if (this.ctx.state === 'suspended') {
+            this.ctx.resume();
+        }
+    }
+
+    /** 単音を鳴らす基本機能 */
+    playTone(freq, type = 'square', duration = 0.1, vol = 1.0) {
+        if (this.isMuted) return;
+        
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+        
+        // エンベロープ (音の立ち上がりと減衰)
+        gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
+        
+        osc.connect(gain);
+        gain.connect(this.masterGain);
+        
+        osc.start();
+        osc.stop(this.ctx.currentTime + duration);
+    }
+
+    /** 効果音: ドットを食べる音 (ワカワカ) */
+    playEatSound() {
+        // 短い矩形波のピッチダウンで表現
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'triangle';
+        
+        osc.frequency.setValueAtTime(600, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(300, this.ctx.currentTime + 0.1);
+        
+        gain.gain.setValueAtTime(0.5, this.ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.1);
+        
+        osc.connect(gain);
+        gain.connect(this.masterGain);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.1);
+    }
+
+    /** 効果音: ゴーストを食べる音 */
+    playEatGhostSound() {
+        for(let i=0; i<3; i++) {
+            setTimeout(() => {
+                this.playTone(800 + (i*200), 'sine', 0.15, 0.8);
+            }, i * 100);
+        }
+    }
+
+    /** 効果音: スタート時のシステム起動音 */
+    playStartSound() {
+        this.playTone(440, 'square', 0.1);
+        setTimeout(() => this.playTone(880, 'square', 0.2), 150);
+        setTimeout(() => this.playTone(1760, 'square', 0.4), 300);
+    }
+    
+    /** 効果音: アチーブメント解除音 */
+    playAchievementSound() {
+        this.playTone(1200, 'sine', 0.1, 0.5);
+        setTimeout(() => this.playTone(1600, 'sine', 0.3, 0.5), 100);
+    }
+}
+
+// ----------------------------------------------------------------------------
+// 5. ACHIEVEMENT MANAGER (実績・通知システム)
+// ----------------------------------------------------------------------------
+class AchievementMgr {
+    constructor(audioEngine) {
+        this.container = document.getElementById('achievement-container');
+        this.unlocked = new Set(); // 既に解除した実績IDを保持
+        this.audio = audioEngine;
+    }
+
+    /**
+     * 実績を解除し、画面に通知を表示する
+     * @param {string} id - 実績の一意のID
+     * @param {string} title - 表示されるテキスト
+     * @param {string} icon - 表示されるアイコン(絵文字など)
+     */
+    unlock(id, title, icon = '🏆') {
+        // 既に解除済みなら何もしない
+        if (this.unlocked.has(id)) return;
+        
+        this.unlocked.add(id);
+        this.audio.playAchievementSound();
+        
+        // DOM要素の生成
+        const toast = document.createElement('div');
+        toast.className = 'achievement-toast';
+        toast.innerHTML = `
+            <div class="achievement-icon">${icon}</div>
+            <div>
+                <div style="font-size: 10px; color: #aaa;">ACHIEVEMENT UNLOCKED</div>
+                <div style="font-weight: bold; letter-spacing: 1px;">${title}</div>
+            </div>
+        `;
+        
+        this.container.appendChild(toast);
+        
+        // CSSアニメーションの発火
+        // 少し遅延させることで、DOMレンダリング後にクラスが付与されトランジションが効く
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                toast.classList.add('show');
+            });
+        });
+        
+        // 4秒後に消去する
+        setTimeout(() => {
+            toast.classList.remove('show');
+            setTimeout(() => {
+                if(this.container.contains(toast)) {
+                    this.container.removeChild(toast);
+                }
+            }, 500); // CSSのトランジション時間待つ
+        }, 4000);
+    }
+}
+
+// 次の出力（第2部）へ続くためのグローバルインスタンスの準備
+const audio = new AudioEngine();
+const input = new InputMgr();
+const achievements = new AchievementMgr(audio);
+
+// ----------------------------------------------------------------------------
+// 6. TEXTURE GENERATOR (プロシージャル・テクスチャ生成エンジン)
+// ----------------------------------------------------------------------------
+class TextureGenerator {
+    constructor() {
+        this.textures = {};
+        this.size = 64; // テクスチャの解像度 (64x64)
+    }
+
+    /** 必要なすべてのテクスチャを初期化・生成する */
+    generateAll() {
+        this.textures.wall = this._generateWallTexture();
+        this.textures.floor = this._generateFloorTexture();
+        this.textures.ceiling = this._generateCeilingTexture();
+    }
+
+    /** 壁のテクスチャ (サイバーパンク風のネオンライン) */
+    _generateWallTexture() {
+        const canvas = document.createElement('canvas');
+        canvas.width = this.size;
+        canvas.height = this.size;
+        const ctx = canvas.getContext('2d');
+
+        // ベースカラー
+        ctx.fillStyle = GAME_CONFIG.COLORS.WALL_BASE;
+        ctx.fillRect(0, 0, this.size, this.size);
+
+        // グリッドライン (ネオン風)
+        ctx.strokeStyle = GAME_CONFIG.COLORS.WALL_LINE;
+        ctx.lineWidth = 2;
+        ctx.shadowColor = GAME_CONFIG.COLORS.WALL_LINE;
+        ctx.shadowBlur = 8;
+
+        ctx.beginPath();
+        // 外枠
+        ctx.rect(1, 1, this.size - 2, this.size - 2);
+        // 中央の横線
+        ctx.moveTo(0, this.size / 2);
+        ctx.lineTo(this.size, this.size / 2);
+        // 縦線
+        ctx.moveTo(this.size / 2, 0);
+        ctx.lineTo(this.size / 2, this.size);
+        ctx.stroke();
+
+        // ノイズ付与 (質感を出すため)
+        const imgData = ctx.getImageData(0, 0, this.size, this.size);
+        for (let i = 0; i < imgData.data.length; i += 4) {
+            if (Math.random() < 0.05) {
+                imgData.data[i] = Math.min(255, imgData.data[i] + 20);
+                imgData.data[i+1] = Math.min(255, imgData.data[i+1] + 20);
+                imgData.data[i+2] = Math.min(255, imgData.data[i+2] + 20);
+            }
+        }
+        ctx.putImageData(imgData, 0, 0);
+        return canvas;
+    }
+
+    /** 床のテクスチャ (暗いチェッカーボードに微細なノイズ) */
+    _generateFloorTexture() {
+        const canvas = document.createElement('canvas');
+        canvas.width = this.size;
+        canvas.height = this.size;
+        const ctx = canvas.getContext('2d');
+
+        ctx.fillStyle = GAME_CONFIG.COLORS.FLOOR;
+        ctx.fillRect(0, 0, this.size, this.size);
+
+        ctx.fillStyle = '#111';
+        ctx.fillRect(0, 0, this.size / 2, this.size / 2);
+        ctx.fillRect(this.size / 2, this.size / 2, this.size / 2, this.size / 2);
+
+        return canvas;
+    }
+
+    /** 天井のテクスチャ (完全な暗闇に近い) */
+    _generateCeilingTexture() {
+        const canvas = document.createElement('canvas');
+        canvas.width = this.size;
+        canvas.height = this.size;
+        const ctx = canvas.getContext('2d');
+
+        ctx.fillStyle = GAME_CONFIG.COLORS.CEILING;
+        ctx.fillRect(0, 0, this.size, this.size);
+
+        return canvas;
+    }
+}
+
+// ----------------------------------------------------------------------------
+// 7. MAZE ENGINE (迷路生成・解析・A*用グラフ構築)
+// ----------------------------------------------------------------------------
+class MazeEngine {
+    constructor(width, height) {
+        // 迷路の幅と高さ (奇数である必要がある)
+        this.width = width % 2 === 0 ? width + 1 : width;
+        this.height = height % 2 === 0 ? height + 1 : height;
+        this.grid = [];
+        this.items = []; // ドットやパワーエサなどのアイテム配置
+        this.totalDots = 0;
+        this.spawnPoint = { x: 1, y: 1 };
+        this.ghostHouse = { x: Math.floor(this.width / 2), y: Math.floor(this.height / 2) };
+    }
+
+    /** 完全な迷路を生成し、アイテムを配置するプロセスを実行 */
+    buildLevel() {
+        this._initGrid();
+        this._digMaze(1, 1);
+        this._ensureLoops();
+        this._buildGhostHouse();
+        this._placeItems();
+    }
+
+    /** グリッドを壁(1)で初期化 */
+    _initGrid() {
+        for (let y = 0; y < this.height; y++) {
+            this.grid[y] = [];
+            for (let x = 0; x < this.width; x++) {
+                this.grid[y][x] = 1; // 1 = 壁
+            }
+        }
+    }
+
+    /** 穴掘り法 (Recursive Backtracker) によるベース迷路生成 */
+    _digMaze(x, y) {
+        this.grid[y][x] = 0; // 0 = 通路
+        
+        // 掘り進む方向をランダムにシャッフル
+        const dirs = [
+            { dx: 0, dy: -2 }, // 上
+            { dx: 2, dy: 0 },  // 右
+            { dx: 0, dy: 2 },  // 下
+            { dx: -2, dy: 0 }  // 左
+        ];
+        dirs.sort(() => Math.random() - 0.5);
+
+        for (const dir of dirs) {
+            const nx = x + dir.dx;
+            const ny = y + dir.dy;
+
+            // 迷路の範囲内で、かつまだ壁である場合
+            if (nx > 0 && nx < this.width - 1 && ny > 0 && ny < this.height - 1 && this.grid[ny][nx] === 1) {
+                // 間の壁を壊す
+                this.grid[y + dir.dy / 2][x + dir.dx / 2] = 0;
+                // 次のセルへ再帰
+                this._digMaze(nx, ny);
+            }
+        }
+    }
+
+    /** * ループ付与アルゴリズム:
+     * 行き止まり(デッドエンド)を検出し、隣接する通路に壁を貫通させることで、
+     * パックマンらしい回遊可能なマップを作成する。
+     */
+
+/** 行き止まり（周囲3方向が壁の通路）を見つける */
+    _findDeadEnds() {
+        const deadEnds = [];
+        for (let y = 1; y < this.height - 1; y++) {
+            for (let x = 1; x < this.width - 1; x++) {
+                if (this.grid[y][x] === 0) {
+                    let walls = 0;
+                    if (this.grid[y - 1][x] === 1) walls++;
+                    if (this.grid[y + 1][x] === 1) walls++;
+                    if (this.grid[y][x - 1] === 1) walls++;
+                    if (this.grid[y][x + 1] === 1) walls++;
+                    if (walls >= 3) {
+                        deadEnds.push({ x, y });
+                    }
+                }
+            }
+        }
+        return deadEnds;
+    }
+
+    /** 指定した位置の行き止まりの壁を1つ壊して通路を繋ぐ */
+    _breakWallAt(x, y) {
+        const dirs = [
+            { dx: 0, dy: -1 }, { dx: 1, dy: 0 },
+            { dx: 0, dy: 1 }, { dx: -1, dy: 0 }
+        ];
+        dirs.sort(() => Math.random() - 0.5);
+
+        for (const dir of dirs) {
+            const nx = x + dir.dx;
+            const ny = y + dir.dy;
+            const nnx = nx + dir.dx;
+            const nny = ny + dir.dy;
+
+            if (nnx > 0 && nnx < this.width - 1 && nny > 0 && nny < this.height - 1) {
+                if (this.grid[ny][nx] === 1 && this.grid[nny][nnx] === 0) {
+                    this.grid[ny][nx] = 0;
+                    return;
+                }
+            }
+        }
+    }
+
+/** 広場を作らず、細い通路のループを維持するアルゴリズム */
+    _ensureLoops() {
+        let deadEnds;
+        let protectionCounter = 0;
+        
+        // 1. 行き止まりを順次つなげていく（基本のループ形成）
+        do {
+            deadEnds = this._findDeadEnds();
+            for (const cell of deadEnds) {
+                this._breakWallAt(cell.x, cell.y);
+            }
+            protectionCounter++;
+        } while (deadEnds.length > 0 && protectionCounter < 10);
+        
+        // 2. ★広場化の防止策: 
+        // 2x2 以上の空間（広場）をスキャンして、見つけたら中心に壁を再設置する
+        for (let y = 1; y < this.height - 2; y++) {
+            for (let x = 1; x < this.width - 2; x++) {
+                if (this.grid[y][x] === 0 && this.grid[y][x+1] === 0 &&
+                    this.grid[y+1][x] === 0 && this.grid[y+1][x+1] === 0) {
+                    
+                    const rx = Math.random() > 0.5 ? 0 : 1;
+                    const ry = Math.random() > 0.5 ? 0 : 1;
+                    this.grid[y + ry][x + rx] = 1; 
+                }
+            }
+        }
+
+        // 3. ランダムな壁破壊を「極小」に制限（広場化の主因をカット）
+        const extraBreaks = Math.floor((this.width * this.height) * 0.01);
+        for(let i = 0; i < extraBreaks; i++) {
+            const rx = MathUtils.randomInt(1, this.width - 2);
+            const ry = MathUtils.randomInt(1, this.height - 2);
+            if(this.grid[ry][rx] === 1) {
+                const vertical = this.grid[ry-1][rx] === 0 && this.grid[ry+1][rx] === 0;
+                const horizontal = this.grid[ry][rx-1] === 0 && this.grid[ry][rx+1] === 0;
+                if((vertical && !horizontal) || (horizontal && !vertical)) {
+                    this.grid[ry][rx] = 0;
+                }
+            }
+        }
+    }
+
+/** マップ中央にゴーストハウスを生成し、通路への接続を保証する */
+    _buildGhostHouse() {
+        const cx = this.ghostHouse.x;
+        const cy = this.ghostHouse.y;
+        
+        for(let y = cy - 1; y <= cy + 1; y++) {
+            for(let x = cx - 1; x <= cx + 1; x++) {
+                this.grid[y][x] = 0;
+            }
+        }
+        
+        // ゲート（ゴースト専用出口）
+        this.grid[cy - 2][cx] = 2; 
+
+        // ゲートの先が必ず通路に繋がるように、上の壁を強制的に壊す
+        if (cy - 3 > 0) {
+            this.grid[cy - 3][cx] = 0;
+            this.grid[cy - 3][cx - 1] = 0;
+            this.grid[cy - 3][cx + 1] = 0;
+        }
+    }
+
+    /** ドットとパワーエサを通路に配置する */
+    _placeItems() {
+        this.items = [];
+        this.totalDots = 0;
+        const powerPelletSpots = [
+            {x: 1, y: 1},
+            {x: this.width - 2, y: 1},
+            {x: 1, y: this.height - 2},
+            {x: this.width - 2, y: this.height - 2}
+        ];
+
+        for (let y = 1; y < this.height - 1; y++) {
+            for (let x = 1; x < this.width - 1; x++) {
+                if (Math.abs(x - this.ghostHouse.x) <= 2 && Math.abs(y - this.ghostHouse.y) <= 2) continue;
+                if (this.grid[y][x] === 0) {
+                    if(MathUtils.distance(x, y, this.spawnPoint.x, this.spawnPoint.y) < 2) continue;
+                    let isPower = false;
+                    for(const spot of powerPelletSpots) {
+                        if(Math.abs(x - spot.x) <= 1 && Math.abs(y - spot.y) <= 1) {
+                            isPower = true;
+                            powerPelletSpots.splice(powerPelletSpots.indexOf(spot), 1);
+                            break;
+                        }
+                    }
+                    const type = isPower ? 'POWER' : 'DOT';
+                    this.items.push({
+                        id: `item_${x}_${y}`,
+                        gridX: x, gridY: y, type: type, active: true,
+                        x: x * GAME_CONFIG.TILE_SIZE + GAME_CONFIG.TILE_SIZE / 2,
+                        y: y * GAME_CONFIG.TILE_SIZE + GAME_CONFIG.TILE_SIZE / 2,
+                        z: isPower ? GAME_CONFIG.TILE_SIZE * 0.4 : GAME_CONFIG.TILE_SIZE * 0.6
+                    });
+                    this.totalDots++;
+                }
+            }
+        }
+    }
+
+  
+    /** 指定座標が壁かどうか判定 */
+    isWall(gridX, gridY) {
+        if (gridX < 0 || gridX >= this.width || gridY < 0 || gridY >= this.height) return true;
+        return this.grid[gridY][gridX] === 1;
+    }
+}
+
+// ----------------------------------------------------------------------------
+// 8. RENDERER (3D レイトレーシング＆UI描画エンジン)
+// ----------------------------------------------------------------------------
+class Renderer {
+    constructor(mazeEngine) {
+        this.maze = mazeEngine;
+        this.mainCanvas = document.getElementById('main-canvas');
+        this.ctx = this.mainCanvas.getContext('2d');
+        this.radarCanvas = document.getElementById('radar-canvas');
+        this.radarCtx = this.radarCanvas.getContext('2d');
+        this.rearCanvas = document.getElementById('rear-canvas');
+        this.rearCtx = this.rearCanvas.getContext('2d');
+        this.resize();
+        window.addEventListener('resize', () => this.resize());
+    }
+
+    resize() {
+        this.w = window.innerWidth;
+        this.h = window.innerHeight;
+        this.mainCanvas.width = this.w;
+        this.mainCanvas.height = this.h;
+        this.zBuffer = new Float32Array(this.w);
+        this.rearCanvas.width = 280;
+        this.rearCanvas.height = 160;
+    }
+
+    render(player, entities) {
+        // 前方描画
+        this._drawFloorAndCeiling(this.ctx, this.w, this.h);
+        this._castRays(player.x, player.y, player.angle, this.ctx, this.w, this.h, this.zBuffer);
+        this._drawSprites(player, entities, this.ctx, this.w, this.h, this.zBuffer, player.angle);
+        this._drawRadar(player, entities);
+
+        // 後方描画
+        const rw = this.rearCanvas.width;
+        const rh = this.rearCanvas.height;
+        const rz = new Float32Array(rw);
+        const rearAngle = MathUtils.normalizeAngle(player.angle + Math.PI);
+        this._drawFloorAndCeiling(this.rearCtx, rw, rh);
+        this._castRays(player.x, player.y, rearAngle, this.rearCtx, rw, rh, rz);
+        this._drawSprites(player, entities, this.rearCtx, rw, rh, rz, rearAngle);
+    }
+
+    _drawFloorAndCeiling(ctx, w, h) {
+        ctx.fillStyle = GAME_CONFIG.COLORS.CEILING;
+        ctx.fillRect(0, 0, w, h / 2);
+        const grad = ctx.createLinearGradient(0, h/2, 0, h);
+        grad.addColorStop(0, '#000000');
+        grad.addColorStop(1, GAME_CONFIG.COLORS.FLOOR);
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, h / 2, w, h / 2);
+    }
+
+    _castRays(px, py, pa, ctx, cw, ch, zBuf) {
+        const ts = GAME_CONFIG.TILE_SIZE;
+        const projDist = (cw / 2) / Math.tan(GAME_CONFIG.FOV / 2);
+        for (let i = 0; i < cw; i++) {
+            const cameraX = 2 * i / cw - 1;
+            const rayDirX = Math.cos(pa) + Math.cos(pa + Math.PI/2) * Math.tan(GAME_CONFIG.FOV/2) * cameraX;
+            const rayDirY = Math.sin(pa) + Math.sin(pa + Math.PI/2) * Math.tan(GAME_CONFIG.FOV/2) * cameraX;
+            let mapX = Math.floor(px / ts), mapY = Math.floor(py / ts);
+            const deltaX = Math.abs(1 / rayDirX), deltaY = Math.abs(1 / rayDirY);
+            let stepX, stepY, sideX, sideY;
+            if (rayDirX < 0) { stepX = -1; sideX = (px/ts - mapX) * deltaX; } else { stepX = 1; sideX = (mapX + 1.0 - px/ts) * deltaX; }
+            if (rayDirY < 0) { stepY = -1; sideY = (py/ts - mapY) * deltaY; } else { stepY = 1; sideY = (mapY + 1.0 - py/ts) * deltaY; }
+            let hit = 0, side = 0;
+            while (hit === 0) {
+                if (sideX < sideY) { sideX += deltaX; mapX += stepX; side = 0; } else { sideY += deltaY; mapY += stepY; side = 1; }
+                if (this.maze.isWall(mapX, mapY)) hit = 1;
+            }
+            const pdist = (side === 0 ? (mapX - px/ts + (1 - stepX)/2) / rayDirX : (mapY - py/ts + (1 - stepY)/2) / rayDirY) * ts;
+            zBuf[i] = pdist;
+            const lh = Math.floor((ts / pdist) * projDist);
+            const b = Math.max(0, 1 - pdist / (GAME_CONFIG.MAX_DEPTH * ts));
+            ctx.fillStyle = side === 1 ? `rgb(0,${20*b},${30*b})` : `rgb(0,${30*b},${45*b})`;
+            ctx.fillRect(i, ch/2 - lh/2, 1, lh);
+            if(pdist < GAME_CONFIG.MAX_DEPTH * ts) {
+                ctx.fillStyle = `rgba(0, 255, 255, ${b * 0.8})`;
+                ctx.fillRect(i, ch/2 - lh/2, 1, 2); ctx.fillRect(i, ch/2 + lh/2 - 2, 1, 2);
+            }
+        }
+    }
+
+    _drawSprites(player, entities, ctx, cw, ch, zBuf, viewAngle) {
+        const ts = GAME_CONFIG.TILE_SIZE;
+        const projDist = (cw / 2) / Math.tan(GAME_CONFIG.FOV / 2);
+        const sprites = entities.filter(e => e.active).map(e => {
+            const dx = e.x - player.x, dy = e.y - player.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            let a = Math.atan2(dy, dx) - viewAngle;
+            while (a < -Math.PI) a += Math.PI * 2; while (a >= Math.PI) a -= Math.PI * 2;
+            return { e, dist, a };
+        }).filter(s => s.dist < GAME_CONFIG.MAX_DEPTH * ts && Math.abs(s.a) < GAME_CONFIG.FOV);
+        sprites.sort((a, b) => b.dist - a.dist);
+        for (const s of sprites) {
+            const cosA = Math.cos(s.a); if (cosA <= 0) continue;
+            const dist = s.dist * cosA;
+            const sx = (cw / 2) + Math.tan(s.a) * projDist;
+            if (sx < 0 || sx >= cw || dist >= zBuf[Math.floor(sx)]) continue;
+            const size = (ts / dist) * projDist;
+            const scale = s.e.type === 'DOT' ? 0.2 : s.e.type === 'POWER' ? 0.4 : 0.8;
+            const ds = size * scale;
+            const b = Math.max(0, 1 - dist / (GAME_CONFIG.MAX_DEPTH * ts));
+            ctx.globalAlpha = b* 0.8;
+            const cy = ch / 2;
+            if (s.e.type === 'DOT' || s.e.type === 'POWER') {
+    const dotY = cy + (size * 0.35); // ★ 0.35を大きくするともっと床に近づきます
+    ctx.fillStyle = s.e.type === 'POWER' ? GAME_CONFIG.COLORS.POWER_PELLET : GAME_CONFIG.COLORS.DOT;
+    ctx.beginPath(); 
+    ctx.arc(sx, dotY, ds/2, 0, Math.PI*2); // ★ ここを cy から dotY に変える
+    ctx.fill();
+}
+            else if (s.e.type.startsWith('GHOST')) {
+                // ゴーストのディテール復元
+                ctx.fillStyle = s.e.state === 'SCARED' ? '#00f' : s.e.color;
+                ctx.beginPath();
+                ctx.arc(sx, cy - ds/4, ds/2, Math.PI, 0);
+                ctx.lineTo(sx + ds/2, cy + ds/2);
+                for(let i=0; i<=3; i++) {
+                    const wx = sx + ds/2 - (ds/3)*i;
+                    const wy = cy + ds/2 - (i%2===0 ? 0 : ds/4);
+                    ctx.lineTo(wx, wy);
+                }
+                ctx.lineTo(sx - ds/2, cy + ds/2); ctx.fill();
+                if (s.e.state !== 'SCARED') {
+                    ctx.fillStyle = '#fff';
+                    ctx.beginPath(); ctx.arc(sx - ds/5, cy - ds/4, ds/6, 0, Math.PI*2); ctx.fill();
+                    ctx.beginPath(); ctx.arc(sx + ds/5, cy - ds/4, ds/6, 0, Math.PI*2); ctx.fill();
+                    ctx.fillStyle = '#00f';
+                    ctx.beginPath(); ctx.arc(sx - ds/5, cy - ds/4, ds/12, 0, Math.PI*2); ctx.fill();
+                    ctx.beginPath(); ctx.arc(sx + ds/5, cy - ds/4, ds/12, 0, Math.PI*2); ctx.fill();
+                }
+            } else if (s.e.type === 'PARTICLE') {
+                ctx.fillStyle = s.e.color; ctx.globalAlpha = s.e.life * b;
+                ctx.fillRect(sx - s.e.size/2, cy - s.e.size/2, s.e.size, s.e.size);
+            }
+            ctx.globalAlpha = 1.0;
+        }
+    }
+/** 画面リサイズ時の処理：各キャンバスの解像度を決定する */
+        resize() {
+        const container = document.getElementById('view-area');
+        if (!container) return;
+
+        this.w = container.clientWidth;
+        this.h = container.clientHeight;
+        
+        this.mainCanvas.width = this.w;
+        this.mainCanvas.height = this.h;
+        this.zBuffer = new Float32Array(this.w);
+        
+        // マップ（レーダー）の解像度
+        this.radarCanvas.width = 250;
+        this.radarCanvas.height = 250;
+    }
+
+    /** 描画のメイン処理 */
+    render(player, entities) {
+        // 前方描画
+        this._drawFloorAndCeiling(this.ctx, this.w, this.h);
+        this._castRays(player.x, player.y, player.angle, this.ctx, this.w, this.h, this.zBuffer);
+        this._drawSprites(player, entities, this.ctx, this.w, this.h, this.zBuffer, player.angle);
+        
+        // レーダー（マップ）の描画
+        this._drawRadar(player, entities);
+
+        // 後方カメラの描画
+        const rw = this.rearCanvas.width;
+        const rh = this.rearCanvas.height;
+        const rz = new Float32Array(rw);
+        const rearAngle = MathUtils.normalizeAngle(player.angle + Math.PI);
+        this._drawFloorAndCeiling(this.rearCtx, rw, rh);
+        this._castRays(player.x, player.y, rearAngle, this.rearCtx, rw, rh, rz);
+        this._drawSprites(player, entities, this.rearCtx, rw, rh, rz, rearAngle);
+    }
+
+    // --- (途中、_drawFloorAndCeiling / _castRays / _drawSprites はそのまま残してください) ---
+
+    /** UI: プロキシミティ・レーダーの歪み修正版 (内部解像度に合わせる) */
+    _drawRadar(player, entities) {
+        const ctx = this.radarCtx;
+        const w = this.radarCanvas.width; // 180
+        const h = this.radarCanvas.height; // 180
+        const ts = GAME_CONFIG.TILE_SIZE;
+        ctx.clearRect(0, 0, w, h);
+        
+        // 縦横共通のスケールを使用
+        const scale = 15; 
+        const offX = (w / 2) - (player.x / ts) * scale;
+        const offY = (h / 2) - (player.y / ts) * scale;
+
+        // 壁の描画
+        ctx.fillStyle = 'rgba(0, 255, 255, 0.4)';
+        for (let y = 0; y < this.maze.height; y++) {
+            for (let x = 0; x < this.maze.width; x++) {
+                if (this.maze.grid[y][x] === 1) {
+                    const dx = offX + x * scale;
+                    const dy = offY + y * scale;
+                    // キャンバスの範囲内のみ描画
+                    if (dx > -scale && dx < w && dy > -scale && dy < h) {
+                        ctx.fillRect(dx, dy, scale + 0.5, scale + 0.5);
+                    }
+                }
+            }
+        }
+
+        // ゴーストの描画
+        entities.forEach(e => {
+            if (!e.active || !e.type.startsWith('GHOST')) return;
+            const gx = offX + (e.x / ts) * scale;
+            const gy = offY + (e.y / ts) * scale;
+            if (gx > 0 && gx < w && gy > 0 && gy < h) {
+                ctx.fillStyle = e.state === 'SCARED' ? '#00f' : '#f00';
+                ctx.beginPath(); 
+                ctx.arc(gx, gy, 4, 0, Math.PI * 2); 
+                ctx.fill();
+            }
+        });
+
+        // プレイヤーの描画 (中央に固定)
+        ctx.save();
+        ctx.translate(w / 2, h / 2);
+        ctx.rotate(player.angle);
+        ctx.fillStyle = '#0f0';
+        ctx.beginPath();
+        ctx.moveTo(8, 0); 
+        ctx.lineTo(-6, -5); 
+        ctx.lineTo(-6, 5);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+    }
+}
+    
+// ----------------------------------------------------------------------------
+// 9. MATH & GEOMETRY KERNEL (ステルスAI用のベクトル演算ライブラリ)
+// ----------------------------------------------------------------------------
+class Vector2 {
+    constructor(x = 0, y = 0) {
+        this.x = x;
+        this.y = y;
+    }
+    set(x, y) {
+        this.x = x;
+        this.y = y;
+        return this;
+    }
+    copy() {
+        return new Vector2(this.x, this.y);
+    }
+    add(v) {
+        this.x += v.x;
+        this.y += v.y;
+        return this;
+    }
+    sub(v) {
+        this.x -= v.x;
+        this.y -= v.y;
+        return this;
+    }
+    multiplyScalar(s) {
+        this.x *= s;
+        this.y *= s;
+        return this;
+    }
+    magnitude() {
+        return Math.sqrt(this.x * this.x + this.y * this.y);
+    }
+    normalize() {
+        const mag = this.magnitude();
+        if (mag !== 0) {
+            this.x /= mag;
+            this.y /= mag;
+        }
+        return this;
+    }
+    dot(v) {
+        return this.x * v.x + this.y * v.y;
+    }
+    distanceTo(v) {
+        const dx = this.x - v.x;
+        const dy = this.y - v.y;
+        return Math.sqrt(dx * dx + dy * dy);
+    }
+    angle() {
+        return Math.atan2(this.y, this.x);
+    }
+    static subtract(v1, v2) {
+        return new Vector2(v1.x - v2.x, v1.y - v2.y);
+    }
+}
+// ここから下に class PriorityQueue が続く状態にしてください
+// ----------------------------------------------------------------------------
+// 10. ADVANCED PATHFINDING ENGINE (優先度付きキューとA*アルゴリズム)
+// ----------------------------------------------------------------------------
+class PriorityQueue {
+    constructor() {
+        this.elements = [];
+    }
+    isEmpty() {
+        return this.elements.length === 0;
+    }
+    enqueue(element, priority) {
+        const qElement = { element, priority };
+        let added = false;
+        for (let i = 0; i < this.elements.length; i++) {
+            if (this.elements[i].priority > qElement.priority) {
+                this.elements.splice(i, 0, qElement);
+                added = true;
+                break;
+            }
+        }
+        if (!added) {
+            this.elements.push(qElement);
+        }
+    }
+    dequeue() {
+        if (this.isEmpty()) return null;
+        return this.elements.shift().element;
+    }
+}
+
+class Pathfinder {
+    static getPath(maze, startGridX, startGridY, targetGridX, targetGridY) {
+        if (startGridX === targetGridX && startGridY === targetGridY) return [];
+        
+        let tx = targetGridX;
+        let ty = targetGridY;
+        
+        if (maze.isWall(tx, ty)) {
+            const fallback = this._findNearestWalkable(maze, tx, ty);
+            if (!fallback) return [];
+            tx = fallback.x;
+            ty = fallback.y;
+        }
+
+        const frontier = new PriorityQueue();
+        frontier.enqueue(new Vector2(startGridX, startGridY), 0);
+        
+        const cameFrom = new Map();
+        const costSoFar = new Map();
+        
+        const startKey = `${startGridX},${startGridY}`;
+        cameFrom.set(startKey, null);
+        costSoFar.set(startKey, 0);
+
+        const dirs = [
+            new Vector2(1, 0), new Vector2(-1, 0),
+            new Vector2(0, 1), new Vector2(0, -1)
+        ];
+
+        let iterations = 0;
+        const maxIter = 800; 
+
+        while (!frontier.isEmpty() && iterations < maxIter) {
+            iterations++;
+            const current = frontier.dequeue();
+            
+            if (current.x === tx && current.y === ty) {
+                break;
+            }
+
+            const currentKey = `${current.x},${current.y}`;
+
+            for (let i = 0; i < dirs.length; i++) {
+                const next = new Vector2(current.x + dirs[i].x, current.y + dirs[i].y);
+                const nextKey = `${next.x},${next.y}`;
+                
+                if (maze.isWall(next.x, next.y)) continue;
+
+                const newCost = costSoFar.get(currentKey) + 1;
+                
+                if (!costSoFar.has(nextKey) || newCost < costSoFar.get(nextKey)) {
+                    costSoFar.set(nextKey, newCost);
+                    const priority = newCost + this._heuristic(next.x, next.y, tx, ty);
+                    frontier.enqueue(next, priority);
+                    cameFrom.set(nextKey, current);
+                }
+            }
+        }
+
+        let current = new Vector2(tx, ty);
+        const path = [];
+        let currKey = `${current.x},${current.y}`;
+        
+        if (!cameFrom.has(currKey)) return []; 
+
+        while (current !== null) {
+            path.push({ x: current.x, y: current.y });
+            current = cameFrom.get(currKey);
+            if (current) currKey = `${current.x},${current.y}`;
+        }
+        
+        path.reverse();
+        path.shift(); 
+        return path;
+    }
+
+    static _heuristic(x1, y1, x2, y2) {
+        return Math.abs(x1 - x2) + Math.abs(y1 - y2);
+    }
+
+    static _findNearestWalkable(maze, x, y) {
+        let maxRadius = 5;
+        for (let r = 1; r <= maxRadius; r++) {
+            for (let i = -r; i <= r; i++) {
+                for (let j = -r; j <= r; j++) {
+                    if (Math.abs(i) === r || Math.abs(j) === r) {
+                        const nx = x + i;
+                        const ny = y + j;
+                        if (!maze.isWall(nx, ny)) {
+                            return { x: nx, y: ny };
+                        }
+                    }
+                }
+            }
+        }
+        return null;
+    }
+}
+
+// ----------------------------------------------------------------------------
+// 11. DYNAMIC UI MANAGER (頭上の「！」マーク等の3D空間投影マネージャー)
+// ----------------------------------------------------------------------------
+class FloatingUIManager {
+    constructor() {
+        this.container = document.createElement('div');
+        this.container.id = 'floating-ui-container';
+        this.container.style.position = 'absolute';
+        this.container.style.top = '0';
+        this.container.style.left = '0';
+        this.container.style.width = '100%';
+        this.container.style.height = '100%';
+        this.container.style.pointerEvents = 'none';
+        this.container.style.zIndex = '30';
+        document.getElementById('game-container').appendChild(this.container);
+        
+        this.markers = new Map(); 
+    }
+
+    update(player, ghosts, canvasWidth, canvasHeight, projDistance) {
+        const fov = GAME_CONFIG.FOV;
+
+        ghosts.forEach(ghost => {
+            if (!ghost.active) return;
+
+            let markerState = null;
+            let markerColor = '#fff';
+            let markerText = '';
+            
+            if (ghost.state === 'CHASE') {
+                markerState = 'alert';
+                markerColor = '#ff0000';
+                markerText = '!';
+            } else if (ghost.state === 'INVESTIGATE') {
+                markerState = 'question';
+                markerColor = '#ffff00';
+                markerText = '?';
+            } else if (ghost.state === 'SCARED') {
+                markerState = 'scared';
+                markerColor = '#00ffff';
+                markerText = '〰';
+            }
+
+            if (!markerState) {
+                if (this.markers.has(ghost.id)) {
+                    const el = this.markers.get(ghost.id);
+                    el.style.opacity = '0';
+                }
+                return;
+            }
+
+            const dx = ghost.x - player.x;
+            const dy = ghost.y - player.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+
+            if (dist > GAME_CONFIG.MAX_DEPTH * GAME_CONFIG.TILE_SIZE) {
+                if (this.markers.has(ghost.id)) this.markers.get(ghost.id).style.opacity = '0';
+                return;
+            }
+
+            let angleToGhost = Math.atan2(dy, dx) - player.angle;
+            while (angleToGhost < -Math.PI) angleToGhost += 2 * Math.PI;
+            while (angleToGhost >= Math.PI) angleToGhost -= 2 * Math.PI;
+
+            let markerEl = this.markers.get(ghost.id);
+            if (!markerEl) {
+                markerEl = document.createElement('div');
+                markerEl.style.position = 'absolute';
+                markerEl.style.fontWeight = 'bold';
+                markerEl.style.fontFamily = 'monospace';
+                markerEl.style.transition = 'opacity 0.2s';
+                markerEl.style.textShadow = '0 0 10px currentColor, 0 0 20px currentColor';
+                this.container.appendChild(markerEl);
+                this.markers.set(ghost.id, markerEl);
+            }
+
+            if (Math.abs(angleToGhost) < (fov / 2) + 0.5) {
+                const correctedDist = dist * Math.cos(angleToGhost);
+                if (correctedDist <= 0.1) return;
+
+                const screenX = Math.tan(angleToGhost) * projDistance;
+                const cx = (canvasWidth / 2) + screenX;
+                
+                const ts = GAME_CONFIG.TILE_SIZE;
+                const zOffset = ((ts / 2) - ghost.z - (ts * 0.8)) / correctedDist * projDistance;
+                const cy = (canvasHeight / 2) + zOffset;
+
+                const baseFontSize = 4000; 
+                let fontSize = baseFontSize / correctedDist;
+                fontSize = Math.max(10, Math.min(80, fontSize));
+
+                markerEl.textContent = markerText;
+                markerEl.style.color = markerColor;
+                markerEl.style.fontSize = `${fontSize}px`;
+                markerEl.style.left = `${cx}px`;
+                markerEl.style.top = `${cy}px`;
+                markerEl.style.transform = `translate(-50%, -100%)`;
+                markerEl.style.opacity = '1';
+                
+                if (markerState === 'alert') {
+                    markerEl.style.animation = 'pulse 0.5s infinite alternate';
+                } else {
+                    markerEl.style.animation = 'none';
+                }
+            } else {
+                markerEl.style.opacity = '0';
+            }
+        });
+    }
+}
+
+// ----------------------------------------------------------------------------
+// 12. PLAYER CLASS (プレイヤー制御、足音システムの実装)
+// ----------------------------------------------------------------------------
+class Player {
+    constructor(maze) {
+        this.maze = maze;
+        this.x = maze.spawnPoint.x * GAME_CONFIG.TILE_SIZE + GAME_CONFIG.TILE_SIZE / 2;
+        this.y = maze.spawnPoint.y * GAME_CONFIG.TILE_SIZE + GAME_CONFIG.TILE_SIZE / 2;
+        this.z = GAME_CONFIG.TILE_SIZE / 2;
+        
+        this.angle = 0;           
+        this.targetAngle = 0;     
+        this.speed = GAME_CONFIG.PLAYER_SPEED;
+        
+        this.isMoving = false;
+        this.makingNoise = false; 
+        
+        this.score = 0;
+        this.lives = 3;
+        this.dotsEaten = 0;
+        this.headBobTimer = 0;
+    }
+
+    update(dt, inputMgr, particles) {
+        this._handleRotation(dt, inputMgr);
+        this._handleMovement(dt, inputMgr);
+        this._applyHeadBob(dt);
+        this._checkItemCollisions(particles);
+    }
+
+       _handleRotation(dt, inputMgr) {
+        // ★修正: スワイプ量(swipeDeltaX)に応じてターゲット角度を直接変更する
+        if (inputMgr.swipeDeltaX !== 0) {
+            this.targetAngle += inputMgr.swipeDeltaX * 10; // 感度調整
+            inputMgr.swipeDeltaX = 0; // 適用したらリセット
+        }
+
+        const diff = this.targetAngle - this.angle;
+        if (Math.abs(diff) > 0.01) {
+            this.angle += diff * 15 * dt; 
+        } else {
+            this.angle = this.targetAngle;
+            // 角度の正規化
+            this.angle = MathUtils.normalizeAngle(this.angle);
+            this.targetAngle = MathUtils.normalizeAngle(this.targetAngle);
+        }
+    }
+
+    _handleMovement(dt, inputMgr) {
+        this.isMoving = false;
+        this.makingNoise = false;
+        let moveStep = 0;
+
+        // ★修正: キー入力の代わりにスティックの傾き(stickY)を使用
+        if (Math.abs(inputMgr.stickY) > 0.1) {
+            moveStep = inputMgr.stickY * this.speed * dt;
+            this.isMoving = true;
+            this.makingNoise = true; 
+        }
+
+        if (moveStep !== 0) {
+            // 移動計算（前方方向へのベクトル）
+            const nx = this.x + Math.cos(this.targetAngle) * moveStep;
+            const ny = this.y + Math.sin(this.targetAngle) * moveStep;
+
+            const radius = GAME_CONFIG.TILE_SIZE * 0.2;
+            const ts = GAME_CONFIG.TILE_SIZE;
+
+            // 衝突判定
+            if (!this.maze.isWall(Math.floor((nx + Math.sign(Math.cos(this.targetAngle)) * radius) / ts), Math.floor(this.y / ts))) {
+                this.x = nx;
+            }
+            if (!this.maze.isWall(Math.floor(this.x / ts), Math.floor((ny + Math.sign(Math.sin(this.targetAngle)) * radius) / ts))) {
+                this.y = ny;
+            }
+        }
+    }
+
+    _applyHeadBob(dt) {
+        if (this.isMoving) {
+            this.headBobTimer += dt * 10;
+            this.z = (GAME_CONFIG.TILE_SIZE / 2) + Math.sin(this.headBobTimer) * 4;
+        } else {
+            this.z += ((GAME_CONFIG.TILE_SIZE / 2) - this.z) * 10 * dt;
+        }
+    }
+
+    _checkItemCollisions(particles) {
+        const radius = GAME_CONFIG.TILE_SIZE * 0.4;
+        
+        for (let i = 0; i < this.maze.items.length; i++) {
+            const item = this.maze.items[i];
+            if (!item.active) continue;
+
+            if (MathUtils.distance(this.x, this.y, item.x, item.y) < (radius + 10)) {
+                item.active = false;
+                
+                if (item.type === 'DOT') {
+                    this.score += 10;
+                    this.dotsEaten++;
+                    audio.playEatSound();
+                } 
+                else if (item.type === 'POWER') {
+                    this.score += 50;
+                    this.dotsEaten++;
+                    audio.playTone(1000, 'sine', 0.5, 1.0); 
+                    window.dispatchEvent(new CustomEvent('powerPelletEaten'));
+                }
+            }
+        }
+    }
+}
+
+// ----------------------------------------------------------------------------
+// 13. STEALTH GHOST AI SYSTEM (視界、聴覚、巡回状態を持つ統合AI基盤)
+// ----------------------------------------------------------------------------
+class GhostBase {
+    constructor(maze, player, id, type, color, startGridX, startGridY) {
+        this.maze = maze;
+        this.player = player;
+        this.id = id;
+        this.type = type;
+        this.color = color;
+        this.active = true;
+        
+        const ts = GAME_CONFIG.TILE_SIZE;
+        this.startX = startGridX * ts + ts / 2;
+        this.startY = startGridY * ts + ts / 2;
+        this.x = this.startX;
+        this.y = this.startY;
+        this.z = ts / 2;
+        
+        this.gridX = startGridX;
+        this.gridY = startGridY;
+        
+        // 固有のAIパラメータ（サブクラスで上書き可能）
+        this.viewDistance = 10 * ts;    // 視認距離(ピクセル)
+        this.fov = Math.PI / 2;         // 視野角 (90度)
+        this.hearingRadius = 4 * ts;    // 足音が聞こえる範囲
+        this.baseSpeed = GAME_CONFIG.GHOST_SPEED_NORMAL * 0.8; // 巡回は少し遅め
+        this.chaseSpeed = GAME_CONFIG.GHOST_SPEED_CHASE * 1.1; // 追跡は早い
+        
+        this.facingAngle = 0; // ゴーストが向いている方向
+        
+        this.state = 'PATROL'; 
+        this.speed = this.baseSpeed;
+        
+        this.path = [];
+        this.currentPatrolIndex = 0;
+        this.patrolNodes = []; // 巡回ルート(サブクラスで定義)
+        
+        this.investigateTarget = null;
+        this.investigateTimer = 0;
+        this.lostSightTimer = 0;
+        this.pathUpdateTimer = 0;
+    }
+
+    update(dt) {
+        if (!this.active) return;
+        
+        this.gridX = Math.floor(this.x / GAME_CONFIG.TILE_SIZE);
+        this.gridY = Math.floor(this.y / GAME_CONFIG.TILE_SIZE);
+
+        this._checkSenses();
+        this._updateState(dt);
+        this._moveAlongPath(dt);
+    }
+
+    // --- センサー（視覚と聴覚）の処理 ---
+/** センサーと自主的な判断ロジック */
+    _checkSenses() {
+        if (this.state === 'EATEN' || this.state === 'SCARED') return;
+
+        const canSee = this._checkLineOfSight();
+        const canHear = this._checkHearing();
+
+        if (canSee) {
+            if (this.state !== 'CHASE') {
+                audio.playTone(1500, 'square', 0.05, 0.5); // 発見時の鋭い音
+            }
+            this.state = 'CHASE';
+            this.lostSightTimer = 0;
+        } else if (this.state === 'CHASE') {
+            this.lostSightTimer += 0.016;
+            // 見失っても、プレイヤーの「予測移動先」に向かって数秒間突っ込む
+            if (this.lostSightTimer > 4.0) { 
+                this.state = 'INVESTIGATE';
+                this.investigateTimer = 8.0; 
+            }
+        } else if (canHear) {
+            // 音がした方へ自主的に調査しに行く
+            this.state = 'INVESTIGATE';
+            this.investigateTarget = new Vector2(
+                Math.floor(this.player.x / GAME_CONFIG.TILE_SIZE),
+                Math.floor(this.player.y / GAME_CONFIG.TILE_SIZE)
+            );
+        } else if (this.state === 'PATROL' && Math.random() < 0.005) {
+            // ★自主性: 巡回中に「ふと気になって」近くの通路を調べに行く（気まぐれな動き）
+            this.state = 'INVESTIGATE';
+            this.investigateTimer = 3.0;
+            this.investigateTarget = new Vector2(
+                this.gridX + MathUtils.randomInt(-3, 3),
+                this.gridY + MathUtils.randomInt(-3, 3)
+            );
+        }
+    }
+
+    // レイトキャストによる精密な視線判定
+    _checkLineOfSight() {
+        const dx = this.player.x - this.x;
+        const dy = this.player.y - this.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (dist > this.viewDistance) return false;
+
+        let angleToPlayer = Math.atan2(dy, dx);
+        let angleDiff = angleToPlayer - this.facingAngle;
+        while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
+        while (angleDiff >= Math.PI) angleDiff -= 2 * Math.PI;
+
+        // 視野角の範囲内かチェック
+        if (Math.abs(angleDiff) > this.fov / 2) return false;
+
+        // DDA (Digital Differential Analyzer) による壁の遮蔽チェック
+        const ts = GAME_CONFIG.TILE_SIZE;
+        let x0 = this.x;
+        let y0 = this.y;
+        let x1 = this.player.x;
+        let y1 = this.player.y;
+        
+        let rayDx = Math.abs(x1 - x0);
+        let rayDy = Math.abs(y1 - y0);
+        let sx = (x0 < x1) ? 1 : -1;
+        let sy = (y0 < y1) ? 1 : -1;
+        let err = rayDx - rayDy;
+
+        let safety = 0;
+        while (safety < 100) {
+            safety++;
+            let gx = Math.floor(x0 / ts);
+            let gy = Math.floor(y0 / ts);
+            
+            if (gx === Math.floor(x1 / ts) && gy === Math.floor(y1 / ts)) {
+                return true; 
+            }
+            if (this.maze.isWall(gx, gy)) {
+                return false; 
+            }
+            let e2 = 2 * err;
+            if (e2 > -rayDy) { err -= rayDy; x0 += sx * (ts/2); }
+            if (e2 < rayDx) { err += rayDx; y0 += sy * (ts/2); }
+        }
+        return false;
+    }
+
+    _checkHearing() {
+        if (!this.player.makingNoise) return false;
+        const dist = MathUtils.distance(this.x, this.y, this.player.x, this.player.y);
+        return dist <= this.hearingRadius;
+    }
+
+    // --- 状態マシンの更新 ---
+    _updateState(dt) {
+        this.pathUpdateTimer -= dt;
+
+        switch (this.state) {
+            case 'PATROL':
+                this.speed = this.baseSpeed;
+                this._handlePatrol();
+                break;
+            case 'CHASE':
+                this.speed = this.chaseSpeed;
+                this._handleChase();
+                break;
+            case 'INVESTIGATE':
+                this.speed = this.baseSpeed;
+                this._handleInvestigate(dt);
+                break;
+            case 'SCARED':
+                this.speed = GAME_CONFIG.GHOST_SPEED_SCARED;
+                this._handleScared();
+                break;
+            case 'EATEN':
+                this.speed = this.chaseSpeed * 2.5; // 超高速で帰還
+                this._handleEaten();
+                break;
+        }
+    }
+
+    _handlePatrol() {
+        if (this.patrolNodes.length === 0) return;
+        
+        if (this.path.length === 0) {
+            const target = this.patrolNodes[this.currentPatrolIndex];
+            this.path = Pathfinder.getPath(this.maze, this.gridX, this.gridY, target.x, target.y);
+            
+            // パスがなければ次の巡回ポイントへ
+            if (this.path.length === 0) {
+                this.currentPatrolIndex = (this.currentPatrolIndex + 1) % this.patrolNodes.length;
+            }
+        }
+        
+        // 巡回ポイントに到達したら次のポイントを設定
+        const targetNode = this.patrolNodes[this.currentPatrolIndex];
+        if (this.gridX === targetNode.x && this.gridY === targetNode.y) {
+            this.currentPatrolIndex = (this.currentPatrolIndex + 1) % this.patrolNodes.length;
+            this.path = []; // パスをリセットして再計算させる
+        }
+    }
+
+    _handleChase() {
+        // プレイヤーの現在位置をターゲットに0.3秒ごとに経路更新
+        if (this.pathUpdateTimer <= 0) {
+            const px = Math.floor(this.player.x / GAME_CONFIG.TILE_SIZE);
+            const py = Math.floor(this.player.y / GAME_CONFIG.TILE_SIZE);
+            this.path = Pathfinder.getPath(this.maze, this.gridX, this.gridY, px, py);
+            this.pathUpdateTimer = 0.3;
+        }
+    }
+
+    _handleInvestigate(dt) {
+        this.investigateTimer -= dt;
+        if (this.investigateTimer <= 0) {
+            // 警戒解除、巡回に戻る
+            this.state = 'PATROL';
+            this.path = [];
+            return;
+        }
+
+        if (this.investigateTarget && this.path.length === 0) {
+            this.path = Pathfinder.getPath(this.maze, this.gridX, this.gridY, this.investigateTarget.x, this.investigateTarget.y);
+            if (this.path.length === 0) {
+                 this.investigateTarget = null; // 到達または経路なし
+            }
+        }
+        
+        // ターゲット位置に到達したらランダムに周囲を見回すロジック
+        if (!this.investigateTarget && this.path.length === 0) {
+            this.facingAngle += Math.PI * dt; // その場でぐるぐる回って索敵
+        }
+    }
+
+    _handleScared() {
+        if (this.pathUpdateTimer <= 0 || this.path.length === 0) {
+            // プレイヤーから最も遠い角をターゲットにする
+            const corners = [
+
+                {x: 1, y: 1}, {x: this.maze.width-2, y: 1},
+                {x: 1, y: this.maze.height-2}, {x: this.maze.width-2, y: this.maze.height-2}
+            ];
+            
+            let bestCorner = corners[0];
+            let maxDist = -1;
+            
+            for(let corner of corners) {
+                const cornerDist = MathUtils.distance(this.player.x, this.player.y, corner.x * GAME_CONFIG.TILE_SIZE, corner.y * GAME_CONFIG.TILE_SIZE);
+                if(cornerDist > maxDist) {
+                    maxDist = cornerDist;
+                    bestCorner = corner;
+                }
+            }
+            
+            this.path = Pathfinder.getPath(this.maze, this.gridX, this.gridY, bestCorner.x, bestCorner.y);
+            this.pathUpdateTimer = 1.0;
+        }
+    }
+
+    _handleEaten() {
+        // ハウスの中心点との距離を測る
+        const distToHouse = MathUtils.distance(this.x, this.y, this.startX, this.startY);
+
+        // ★修正: マス目判定ではなく「中心点から15ピクセル以内」に来たら到着とみなす
+        if (distToHouse < 15) {
+            this.x = this.startX;
+            this.y = this.startY;
+            this.path = []; 
+            return;
+        }
+
+        // まだ遠い場合はハウス（中央）への道を計算して進む
+        if (this.path.length === 0) {
+            this.path = Pathfinder.getPath(this.maze, this.gridX, this.gridY, this.maze.ghostHouse.x, this.maze.ghostHouse.y);
+        }
+    }
+
+    // --- 移動と物理処理 ---
+    _moveAlongPath(dt) {
+        if (this.path.length === 0) return;
+
+        const ts = GAME_CONFIG.TILE_SIZE;
+        const nextNode = this.path[0];
+        const targetPixelX = nextNode.x * ts + ts / 2;
+        const targetPixelY = nextNode.y * ts + ts / 2;
+
+        const dx = targetPixelX - this.x;
+        const dy = targetPixelY - this.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (dist > 0.1) {
+            // 移動方向へ角度を滑らかに向ける
+            const moveAngle = Math.atan2(dy, dx);
+            
+            let angleDiff = moveAngle - this.facingAngle;
+            while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
+            while (angleDiff >= Math.PI) angleDiff -= 2 * Math.PI;
+            
+            this.facingAngle += angleDiff * 10 * dt;
+
+            // 進行
+            if (dist < this.speed * dt) {
+                this.x = targetPixelX;
+                this.y = targetPixelY;
+                this.path.shift();
+            } else {
+                this.x += Math.cos(moveAngle) * this.speed * dt;
+                this.y += Math.sin(moveAngle) * this.speed * dt;
+            }
+            
+            // 浮遊アニメーション
+            this.z = (ts / 2) + Math.sin(Date.now() / 150) * 8;
+        } else {
+            this.path.shift();
+        }
+    }
+
+    setScared() {
+        if (this.state === 'EATEN') return; 
+        this.state = 'SCARED';
+        this.path = []; 
+        this.pathUpdateTimer = 0;
+    }
+
+    eat() {
+        this.state = 'EATEN';
+        this.path = [];
+        this.pathUpdateTimer = 0;
+        audio.playEatGhostSound();
+    }
+}
+
+// ----------------------------------------------------------------------------
+// 14. SPECIFIC STEALTH GHOSTS (個別の性格とパトロールルート設定)
+// ----------------------------------------------------------------------------
+
+/**
+ * BLINKY (赤) - The Guard (外周警備)
+ * 視界が非常に長く狭い。マップの外周を時計回りに巡回する兵士。
+ */
+class Blinky extends GhostBase {
+    constructor(maze, player, startX, startY) {
+        super(maze, player, 'GHOST_BLINKY', 'GHOST_BLINKY', GAME_CONFIG.GHOST_COLORS.BLINKY, startX, startY);
+        
+        const ts = GAME_CONFIG.TILE_SIZE;
+        this.viewDistance = 15 * ts; // 超遠距離まで見える
+        this.fov = Math.PI / 4;      // ただし視界は45度と狭い
+        this.hearingRadius = 2 * ts; // 耳はあまり良くない
+
+        // マップの外周四隅を巡回ルートに設定
+        const w = maze.width;
+        const h = maze.height;
+        this.patrolNodes = [
+            { x: 1, y: 1 },
+            { x: w - 2, y: 1 },
+            { x: w - 2, y: h - 2 },
+            { x: 1, y: h - 2 }
+        ];
+    }
+}
+
+/**
+ * PINKY (ピンク) - The Tracker (内周警戒・地獄耳)
+ * 視界は普通だが、聴覚が異常に発達している。足音を立てると壁越しでも気づく。
+ */
+class Pinky extends GhostBase {
+    constructor(maze, player, startX, startY) {
+        super(maze, player, 'GHOST_PINKY', 'GHOST_PINKY', GAME_CONFIG.GHOST_COLORS.PINKY, startX, startY);
+        
+        const ts = GAME_CONFIG.TILE_SIZE;
+        this.viewDistance = 8 * ts;  
+        this.fov = Math.PI / 2;      
+        this.hearingRadius = 8 * ts; // 半径8マス以内の足音を感知する（壁貫通）
+
+        // マップの内側を逆時計回りに巡回
+        const w = maze.width;
+        const h = maze.height;
+        const inset = 4;
+        this.patrolNodes = [
+            { x: inset, y: inset },
+            { x: inset, y: h - inset - 1 },
+            { x: w - inset - 1, y: h - inset - 1 },
+            { x: w - inset - 1, y: inset }
+        ];
+    }
+}
+
+/**
+ * INKY (水色) - The Watcher (左半分の監視)
+ * 視界距離は短いが、視野角が180度以上あり、横を通り抜けようとするプレイヤーを見逃さない。
+ */
+class Inky extends GhostBase {
+    constructor(maze, player, startX, startY) {
+        super(maze, player, 'GHOST_INKY', 'GHOST_INKY', GAME_CONFIG.GHOST_COLORS.INKY, startX, startY);
+        
+        const ts = GAME_CONFIG.TILE_SIZE;
+        this.viewDistance = 6 * ts;  // 短い
+        this.fov = Math.PI * 1.2;    // 超広角(216度)
+        this.hearingRadius = 3 * ts; 
+
+        // 左半分の特定の部屋やエリアを8の字に巡回
+        const w = maze.width;
+        const h = maze.height;
+        this.patrolNodes = [
+            { x: 2, y: Math.floor(h/2) },
+            { x: Math.floor(w/2)-2, y: 2 },
+            { x: 2, y: 2 },
+            { x: Math.floor(w/2)-2, y: Math.floor(h/2) }
+        ];
+    }
+}
+
+/**
+ * CLYDE (オレンジ) - The Paranoid (右半分の警戒・不審者)
+ * 挙動不審。巡回ポイントがランダムで、時折立ち止まっては突然振り返ったりする（Investigate状態を自発的に発動）。
+ */
+class Clyde extends GhostBase {
+    constructor(maze, player, startX, startY) {
+        super(maze, player, 'GHOST_CLYDE', 'GHOST_CLYDE', GAME_CONFIG.GHOST_COLORS.CLYDE, startX, startY);
+        
+        const ts = GAME_CONFIG.TILE_SIZE;
+        this.viewDistance = 7 * ts;  
+        this.fov = Math.PI / 2;      
+        this.hearingRadius = 4 * ts; 
+        
+        this.paranoidTimer = 5.0; // 5秒ごとに不審な動きをする
+
+        // 初期化時にマップ右半分のランダムな通路を巡回ノードとして抽出
+        this.patrolNodes = [];
+        const w = maze.width;
+        const h = maze.height;
+        for(let i=0; i<5; i++) {
+            let rx, ry;
+            let attempts = 0;
+            do {
+                rx = MathUtils.randomInt(Math.floor(w/2), w-2);
+                ry = MathUtils.randomInt(1, h-2);
+                attempts++;
+            } while(maze.isWall(rx, ry) && attempts < 50);
+            if(!maze.isWall(rx, ry)) {
+                this.patrolNodes.push({x: rx, y: ry});
+            }
+        }
+    }
+
+    update(dt) {
+        super.update(dt);
+        
+        // 巡回中に突然立ち止まって警戒モードに入る独自ロジック
+        if (this.state === 'PATROL') {
+            this.paranoidTimer -= dt;
+            if (this.paranoidTimer <= 0) {
+                this.state = 'INVESTIGATE';
+                this.investigateTarget = null; // 特定のターゲットを持たずにキョロキョロする
+                this.investigateTimer = 3.0;
+                this.paranoidTimer = MathUtils.randomInt(5, 12); // 次の発動は5〜12秒後
+            }
+        }
+    }
+}
+
+// ----------------------------------------------------------------------------
+// ★追加: PARTICLE SYSTEM (欠落していたエフェクトエンジン)
+// ----------------------------------------------------------------------------
+class ParticleSystem {
+    constructor() {
+        this.particles = [];
+    }
+
+    spawn(x, y, z, color, count, speedBase) {
+        for (let i = 0; i < count; i++) {
+            const theta = Math.random() * 2 * Math.PI;
+            const phi = Math.acos((Math.random() * 2) - 1);
+            const speed = speedBase * (0.5 + Math.random() * 0.5);
+
+            this.particles.push({
+                x: x, y: y, z: z,
+                vx: speed * Math.sin(phi) * Math.cos(theta),
+                vy: speed * Math.sin(phi) * Math.sin(theta),
+                vz: speed * Math.cos(phi),
+                life: 1.0, decay: 0.02 + Math.random() * 0.03,
+                color: color, size: 2 + Math.random() * 3
+            });
+        }
+    }
+
+    update(dt) {
+        for (let i = this.particles.length - 1; i >= 0; i--) {
+            let p = this.particles[i];
+            p.x += p.vx * dt;
+            p.y += p.vy * dt;
+            p.z += p.vz * dt;
+            
+            p.vz -= 980 * dt; 
+            if (p.z < 0) {
+                p.z = 0;
+                p.vz *= -0.5; 
+                p.vx *= 0.8;  
+                p.vy *= 0.8;
+            }
+
+            p.life -= p.decay;
+            if (p.life <= 0) {
+                this.particles.splice(i, 1);
+            }
+        }
+    }
+
+    getEntities() {
+        return this.particles.map(p => ({
+            active: true, x: p.x, y: p.y, z: p.z,
+            type: 'PARTICLE', color: p.color, life: p.life, size: p.size
+        }));
+    }
+}
+
+// ----------------------------------------------------------------------------
+// 15. SAVE & DATA MANAGEMENT SYSTEM (ローカルストレージと永続データ管理)
+// ----------------------------------------------------------------------------
+class SaveSystem {
+    constructor() {
+        this.storageKey = 'pacmaze_v6_save_data';
+        this.data = this.load();
+    }
+    load() {
+        try {
+            const raw = localStorage.getItem(this.storageKey);
+            if (raw) {
+                return JSON.parse(raw);
+            }
+        } catch (e) {
+            console.warn("Save data corrupted or inaccessible.", e);
+        }
+        return this.getDefaultData();
+    }
+    save() {
+        try {
+            localStorage.setItem(this.storageKey, JSON.stringify(this.data));
+        } catch (e) {
+            console.warn("Failed to save game data.", e);
+        }
+    }
+    getDefaultData() {
+        return {
+            highScore: 0,
+            maxLevelReached: 1,
+            totalDotsEaten: 0,
+            ghostsEaten: 0,
+            playCount: 0,
+            achievements: []
+        };
+    }
+    updateHighScore(score) {
+        if (score > this.data.highScore) {
+            this.data.highScore = score;
+            this.save();
+            return true;
+        }
+        return false;
+    }
+    addAchievement(id) {
+        if (!this.data.achievements.includes(id)) {
+            this.data.achievements.push(id);
+            this.save();
+        }
+    }
+    incrementStat(statName, value = 1) {
+        if (typeof this.data[statName] === 'number') {
+            this.data[statName] += value;
+            this.save();
+        }
+    }
+}
+
+// ----------------------------------------------------------------------------
+// 16. GAMEPAD MANAGER (コントローラー操作の統合)
+// ----------------------------------------------------------------------------
+class GamepadManager {
+    constructor(inputMgr) {
+        this.inputMgr = inputMgr;
+        this.gamepadIndex = null;
+        this.threshold = 0.5;
+        this.mapping = {
+            up: false, down: false, left: false, right: false, action: false
+        };
+        this.prevMapping = { ...this.mapping };
+
+        window.addEventListener("gamepadconnected", (e) => {
+            console.log("Gamepad connected:", e.gamepad.id);
+            this.gamepadIndex = e.gamepad.index;
+        });
+        window.addEventListener("gamepaddisconnected", (e) => {
+            if (this.gamepadIndex === e.gamepad.index) {
+                this.gamepadIndex = null;
+            }
+        });
+    }
+
+    update() {
+        this.prevMapping = { ...this.mapping };
+        
+        if (this.gamepadIndex === null) return;
+        const gamepads = navigator.getGamepads();
+        const gp = gamepads[this.gamepadIndex];
+        if (!gp) return;
+
+        // 左スティックと十字キーの統合処理
+        const axisX = gp.axes[0];
+        const axisY = gp.axes[1];
+        
+        this.mapping.up = gp.buttons[12]?.pressed || axisY < -this.threshold;
+        this.mapping.down = gp.buttons[13]?.pressed || axisY > this.threshold;
+        this.mapping.left = gp.buttons[14]?.pressed || axisX < -this.threshold;
+        this.mapping.right = gp.buttons[15]?.pressed || axisX > this.threshold;
+        
+        // Aボタン / クロスボタン
+        this.mapping.action = gp.buttons[0]?.pressed;
+
+        // InputMgrに状態を注入 (キーボードと同等に扱う)
+        if (this.mapping.up) this.inputMgr.keys['ArrowUp'] = true;
+        else if (this.prevMapping.up) this.inputMgr.keys['ArrowUp'] = false;
+
+        if (this.mapping.down) this.inputMgr.keys['ArrowDown'] = true;
+        else if (this.prevMapping.down) this.inputMgr.keys['ArrowDown'] = false;
+
+        if (this.mapping.left && !this.prevMapping.left) {
+            this.inputMgr.keys['ArrowLeft'] = true; // JustPressed判定のため
+            setTimeout(() => this.inputMgr.keys['ArrowLeft'] = false, 50);
+        }
+        if (this.mapping.right && !this.prevMapping.right) {
+            this.inputMgr.keys['ArrowRight'] = true;
+            setTimeout(() => this.inputMgr.keys['ArrowRight'] = false, 50);
+        }
+    }
+}
+
+// ----------------------------------------------------------------------------
+// 17. COMBO & SCORING SYSTEM (連鎖スコア計算)
+// ----------------------------------------------------------------------------
+class ComboSystem {
+    constructor() {
+        this.baseGhostScore = 200;
+        this.multiplier = 1;
+        this.active = false;
+        this.comboCount = 0;
+    }
+    startPowerMode() {
+        this.active = true;
+        this.multiplier = 1;
+        this.comboCount = 0;
+    }
+    endPowerMode() {
+        this.active = false;
+        this.multiplier = 1;
+        this.comboCount = 0;
+    }
+    eatGhost() {
+        if (!this.active) return 0;
+        const points = this.baseGhostScore * this.multiplier;
+        this.multiplier *= 2; // 200 -> 400 -> 800 -> 1600
+        this.comboCount++;
+        return points;
+    }
+}
+
+// ----------------------------------------------------------------------------
+// 18. DYNAMIC DIFFICULTY DIRECTOR (動的難易度調整・AI監督)
+// ----------------------------------------------------------------------------
+class DifficultyDirector {
+    constructor() {
+        this.baseDifficulty = 1.0;
+        this.currentDifficulty = 1.0;
+        this.playerStealthTime = 0;
+        this.playerChaseTime = 0;
+    }
+    
+    resetForLevel(level) {
+        // レベルが上がるごとにベース難易度が上昇
+        this.baseDifficulty = 1.0 + (level * 0.1);
+        this.currentDifficulty = this.baseDifficulty;
+        this.playerStealthTime = 0;
+        this.playerChaseTime = 0;
+    }
+
+    update(dt, isChased) {
+        if (isChased) {
+            this.playerChaseTime += dt;
+            this.playerStealthTime = 0;
+            // 長時間追われていると、少しだけゴーストが手加減する（速度減衰）
+            if (this.playerChaseTime > 10) {
+                this.currentDifficulty = Math.max(this.baseDifficulty * 0.8, this.currentDifficulty - dt * 0.05);
+            }
+        } else {
+            this.playerStealthTime += dt;
+            this.playerChaseTime = 0;
+            // 長時間見つかっていないと、ゴーストの感覚が鋭くなる
+            if (this.playerStealthTime > 20) {
+                this.currentDifficulty = Math.min(this.baseDifficulty * 1.5, this.currentDifficulty + dt * 0.02);
+            }
+        }
+    }
+
+    // AIに適用する係数を返す
+    getSpeedMultiplier() {
+        return Math.min(2.0, this.currentDifficulty);
+    }
+    getVisionMultiplier() {
+        return Math.min(1.5, this.currentDifficulty);
+    }
+}
+
+// ----------------------------------------------------------------------------
+// 19. MAIN GAME ENGINE (全体統括・ステートマシン)
+// ----------------------------------------------------------------------------
+class GameEngine {
+    constructor() {
+        // システムモジュールの初期化
+        this.saveSystem = new SaveSystem();
+        this.gamepad = new GamepadManager(input); // inputはPart1のグローバル変数
+        this.combo = new ComboSystem();
+        this.director = new DifficultyDirector();
+        this.textureGen = new TextureGenerator();
+        this.textureGen.generateAll();
+
+        // 状態管理
+        this.gameState = 'MENU'; // MENU, PLAYING, DYING, CLEAR, GAMEOVER
+        this.level = 1;
+        this.lastTime = performance.now();
+        this.powerModeTimer = 0;
+        
+        // 描画・UI系
+        this.uiManager = new FloatingUIManager();
+        this.particles = new ParticleSystem();
+        
+        // DOMキャッシュ
+        this.ui = {
+            score: document.getElementById('ui-score'),
+            level: document.getElementById('ui-level'),
+            dots: document.getElementById('ui-dots'),
+            hiscore: document.getElementById('ui-hiscore'),
+            lives: document.getElementById('ui-lives'),
+            startScreen: document.getElementById('start-screen'),
+            btnStart: document.getElementById('btn-start'),
+            msgMain: document.getElementById('msg-main'),
+            msgSub: document.getElementById('msg-sub'),
+            damageFlash: document.getElementById('damage-flash')
+        };
+
+        // イベントバインディング
+        this.ui.btnStart.addEventListener('click', () => this.bootSequence());
+        window.addEventListener('powerPelletEaten', () => this.triggerPowerMode());
+
+        // 初期UIセット
+        this.ui.hiscore.innerText = this.saveSystem.data.highScore.toString().padStart(6, '0');
+        
+        // メインループ起動
+        requestAnimationFrame((t) => this.loop(t));
+    }
+
+/** 「INITIALIZE SYSTEM」ボタン押下時の演出と起動処理 */
+    bootSequence() {
+        // 【修正】MENU だけでなく GAMEOVER の時も起動できるように変更
+        if (this.gameState !== 'MENU' && this.gameState !== 'GAMEOVER') return;
+        
+        audio.resume();
+        audio.playStartSound();
+        
+        this.ui.btnStart.style.display = 'none';
+        this.ui.startScreen.style.background = 'rgba(0,0,0,1)';
+        
+        let glitchCount = 0;
+        const glitchInterval = setInterval(() => {
+            glitchCount++;
+            this.ui.startScreen.style.opacity = glitchCount % 2 === 0 ? '0.2' : '1';
+            if (glitchCount > 6) {
+                clearInterval(glitchInterval);
+                this.ui.startScreen.style.display = 'none'; 
+                this.ui.startScreen.classList.add('hidden');
+                this.startNewGame(); // ゲームリセット処理へ
+            }
+        }, 100);
+    }
+
+    /** ゲーム全体の初期化 (スコアや残機のリセット) */
+    startNewGame() {
+        this.saveSystem.incrementStat('playCount');
+        this.level = 1;
+        this.playerData = {
+            score: 0,
+            lives: 3
+        };
+        this.initLevel();
+    }
+
+    /** レベル(迷路)ごとの初期化と構築 */
+    initLevel() {
+        this.gameState = 'INIT';
+        this.director.resetForLevel(this.level);
+        
+        // 迷路の生成 (レベルが上がるごとに少しずつ広く、複雑になる)
+        const baseSize = 15;
+        const sizeIncrease = Math.min(10, Math.floor(this.level / 2) * 2);
+        this.maze = new MazeEngine(baseSize + sizeIncrease, baseSize + sizeIncrease);
+        this.maze.buildLevel();
+
+        // プレイヤーの配置
+        this.player = new Player(this.maze);
+        this.player.score = this.playerData.score;
+        this.player.lives = this.playerData.lives;
+
+        // ゴーストの配置
+        const cx = this.maze.ghostHouse.x;
+        const cy = this.maze.ghostHouse.y;
+        this.ghosts = [
+            new Blinky(this.maze, this.player, cx, cy),
+            new Pinky(this.maze, this.player, cx - 1, cy),
+            new Inky(this.maze, this.player, cx + 1, cy),
+            new Clyde(this.maze, this.player, cx, cy + 1)
+        ];
+
+        // ゴーストのベースパラメータにディレクターの補正を適用
+        const speedMult = this.director.getSpeedMultiplier();
+        const viewMult = this.director.getVisionMultiplier();
+       
+        // レンダラーの再構築
+        this.renderer = new Renderer(this.maze, this.textureGen);
+        
+        // UIのリセット
+        this.updateHUD();
+        this.particles.particles = [];
+        this.powerModeTimer = 0;
+        this.combo.endPowerMode();
+
+        // 画面演出
+        this.showCenterMessage(`LEVEL ${this.level}`, 'COMMENCING MISSION...', 2000);
+        
+        setTimeout(() => {
+            this.gameState = 'PLAYING';
+            this.lastTime = performance.now();
+        }, 2000);
+    }
+
+    /** クッキー(パワーエサ)取得時の処理 */
+    triggerPowerMode() {
+        this.powerModeTimer = GAME_CONFIG.GHOST_SCARED_TIME / 1000; // 秒に変換
+        this.combo.startPowerMode();
+        
+        // UI演出
+        this.ui.score.style.color = GAME_CONFIG.COLORS.POWER_PELLET;
+        this.ui.score.style.textShadow = `0 0 15px ${GAME_CONFIG.COLORS.POWER_PELLET}`;
+        
+        this.ghosts.forEach(g => g.setScared());
+        
+        // 実績チェック
+        achievements.unlock('power_up', 'SYSTEM OVERRIDE: Power Mode Engaged', '🔋');
+    }
+
+    /** メインループ (毎フレーム実行) */
+
+
+    loop(time) {
+        requestAnimationFrame((t) => this.loop(t));
+
+        // デルタタイム計算 (最大0.1秒にキャップしてフレーム落ち時の壁抜けを防止)
+        const dt = Math.min((time - this.lastTime) / 1000, 0.1);
+        this.lastTime = time;
+
+        this.gamepad.update();
+
+        // 状態ごとの処理分岐
+        if (this.gameState === 'PLAYING') {
+            this.updatePlaying(dt);
+        } else if (this.gameState === 'DYING') {
+            this.updateDying(dt);
+        }
+
+        // 常に描画は行う
+        if (this.maze && this.renderer) {
+            this.draw();
+        }
+
+        // キー入力状態の更新
+        input.update();
+    }
+
+    /** プレイ中のロジック更新 */
+    updatePlaying(dt) {
+        // AI監督の更新（誰かに追われているか？）
+        const isChased = this.ghosts.some(g => g.state === 'CHASE');
+        this.director.update(dt, isChased);
+
+// パワーモードのタイマー処理
+        if (this.powerModeTimer > 0) {
+            this.powerModeTimer -= dt;
+            if (this.powerModeTimer <= 0) {
+                // 効果終了時のリセット
+                this.combo.endPowerMode();
+                this.ui.score.style.color = '#ff0'; 
+                this.ui.score.style.textShadow = '0 0 10px #ff0';
+                this.ui.score.style.opacity = '1';
+                
+                // ★修正: 逃走中(SCARED)とハウス待機中(EATEN)を同時に通常状態に戻す
+                this.ghosts.forEach(g => {
+                    if (g.state === 'SCARED' || g.state === 'EATEN') {
+                        if (g.state === 'EATEN') {
+                            g.x = g.startX;
+                            g.y = g.startY;
+                        }
+                        g.state = 'PATROL';
+                        g.path = []; 
+                    }
+                });
+            } else if (this.powerModeTimer < 2.0) {
+                // 終了前の点滅
+                this.ui.score.style.opacity = Math.floor(this.powerModeTimer * 10) % 2 === 0 ? '0.5' : '1';
+            }
+        }
+
+        // エンティティの更新
+        this.player.update(dt, input, this.particles);
+        this.ghosts.forEach(g => g.update(dt));
+        this.particles.update(dt);
+
+        // 衝突判定とクリア判定
+        this.checkCollisions();
+        this.checkWinCondition();
+        
+        // データの永続化
+        this.playerData.score = this.player.score;
+        this.updateHUD();
+        this.checkAchievements();
+    }
+
+    /** 当たり判定 (プレイヤー vs ゴースト) */
+    checkCollisions() {
+        const hitRadius = GAME_CONFIG.TILE_SIZE * 0.4;
+        
+        for (let i = 0; i < this.ghosts.length; i++) {
+            const ghost = this.ghosts[i];
+            if (!ghost.active || ghost.state === 'EATEN') continue;
+
+            const dist = MathUtils.distance(this.player.x, this.player.y, ghost.x, ghost.y);
+            
+            if (dist < hitRadius) {
+                if (ghost.state === 'SCARED') {
+                    // ゴーストを食べる
+                    ghost.eat();
+                    const points = this.combo.eatGhost();
+                    this.player.score += points;
+                    this.saveSystem.incrementStat('ghostsEaten');
+                    
+                    // スコアのパーティクルを発生(黄色)
+                    this.particles.spawn(ghost.x, ghost.y, ghost.z, '#ffff00', 15, 150);
+                    
+                    // 画面に獲得ポイントを一瞬表示
+                    this.showCenterMessage(`${points} PTS!`, 'GHOST NEUTRALIZED', 1000);
+                    
+                } else if (ghost.state !== 'EATEN') {
+                    // プレイヤーがやられる
+                    this.handlePlayerDeath();
+                    return; // 複数同時に当たっても1回だけ処理
+                }
+            }
+        }
+    }
+
+    /** プレイヤー死亡時のシーケンス */
+    handlePlayerDeath() {
+        this.gameState = 'DYING';
+        this.player.lives--;
+        this.playerData.lives = this.player.lives;
+        
+        audio.playTone(200, 'sawtooth', 1.0, 1.0); // 死亡音
+        
+        // 画面を赤く光らせるエフェクト
+        this.ui.damageFlash.style.opacity = '1';
+        setTimeout(() => this.ui.damageFlash.style.opacity = '0', 200);
+
+        this.particles.spawn(this.player.x, this.player.y, this.player.z, '#ff0000', 50, 300);
+        this.showCenterMessage('CRITICAL DAMAGE', 'SYSTEM REBOOTING...', 3000);
+
+        // 3秒後にリスポーンまたはゲームオーバー
+        setTimeout(() => {
+            if (this.player.lives > 0) {
+                this.respawn();
+            } else {
+                this.handleGameOver();
+            }
+        }, 3000);
+    }
+
+    updateDying(dt) {
+        // 死亡演出中はパーティクルだけ更新
+        this.particles.update(dt);
+        // カメラがゆっくり下を向くようなエフェクト
+        this.player.z -= 50 * dt;
+        if(this.player.z < 5) this.player.z = 5;
+    }
+
+    /** リスポーン (残機がある場合) */
+    respawn() {
+        // プレイヤーとゴーストの位置を初期化
+        const ts = GAME_CONFIG.TILE_SIZE;
+        this.player.x = this.maze.spawnPoint.x * ts + ts / 2;
+        this.player.y = this.maze.spawnPoint.y * ts + ts / 2;
+        this.player.z = ts / 2;
+        this.player.angle = 0;
+        this.player.targetAngle = 0;
+        
+        this.ghosts.forEach(g => {
+            g.x = g.startX;
+            g.y = g.startY;
+            g.state = 'PATROL';
+            g.path = [];
+        });
+        
+        this.powerModeTimer = 0;
+        this.updateHUD();
+        this.gameState = 'PLAYING';
+    }
+
+    /** ゲームオーバー処理 */
+    handleGameOver() {
+        this.gameState = 'GAMEOVER';
+        const isNewRecord = this.saveSystem.updateHighScore(this.player.score);
+        
+        // 【修正】displayを 'flex' に戻して、画面が見えるようにする
+        this.ui.startScreen.style.display = 'flex';
+        this.ui.startScreen.classList.remove('hidden');
+        this.ui.startScreen.style.background = 'rgba(20, 0, 0, 0.9)'; 
+        this.ui.startScreen.style.opacity = '1';
+        
+        const mainTitle = document.getElementById('screen-title');
+        if (mainTitle) {
+            mainTitle.innerText = 'GAME OVER';
+            mainTitle.style.color = '#f00';
+            mainTitle.style.textShadow = '0 0 20px #f00';
+        }
+        
+        const subDesc = document.getElementById('screen-desc');
+        if (subDesc) {
+            subDesc.innerHTML = `
+                FINAL SCORE: <span style="color:#ff0; font-size:24px;">${this.player.score}</span><br>
+                LEVEL REACHED: ${this.level}<br><br>
+                ${isNewRecord ? '<span style="color:#0f0; font-weight:bold; font-size:20px;">NEW RECORD ESTABLISHED!</span>' : ''}
+            `;
+        }
+        
+        this.ui.btnStart.innerText = 'RESTART SYSTEM';
+        this.ui.btnStart.style.display = 'block';
+        
+        achievements.unlock('game_over', 'Mission Failed', '💀');
+    }
+
+    /** レベルクリア（すべてのドットを食べたか）判定 */
+    checkWinCondition() {
+        if (this.player.dotsEaten >= this.maze.totalDots) {
+            this.gameState = 'CLEAR';
+            this.saveSystem.incrementStat('totalDotsEaten', this.player.dotsEaten);
+            
+            // ボーナススコア
+            const timeBonus = Math.max(0, 1000 - Math.floor(this.director.playerStealthTime + this.director.playerChaseTime) * 10);
+            this.player.score += timeBonus;
+            
+            audio.playTone(1000, 'sine', 0.2);
+            setTimeout(() => audio.playTone(1500, 'sine', 0.4), 200);
+            
+            this.showCenterMessage('SECTOR CLEARED', `TIME BONUS: +${timeBonus}`, 3000);
+            
+            setTimeout(() => {
+                this.level++;
+                if (this.level > this.saveSystem.data.maxLevelReached) {
+                    this.saveSystem.data.maxLevelReached = this.level;
+                    this.saveSystem.save();
+                }
+                this.initLevel();
+            }, 3000);
+        }
+    }
+
+    /** 毎フレームの描画統合 */
+    draw() {
+        // レンダラーに渡すエンティティリストの生成
+        const entities = [
+            ...this.maze.items,
+            ...this.ghosts,
+            ...this.particles.getEntities()
+        ];
+        
+        // 3Dレンダリング
+        this.renderer.render(this.player, entities);
+        
+        // ★追加: フローティングUI(！マークや？マーク)の更新
+        const projDist = (this.renderer.mainCanvas.width / 2) / Math.tan(GAME_CONFIG.FOV / 2);
+        this.uiManager.update(
+            this.player, 
+            this.ghosts, 
+            this.renderer.mainCanvas.width, 
+            this.renderer.mainCanvas.height, 
+            projDist
+        );
+    }
+
+    /** HTML上のUI(HUD)のテキストやアイコンの更新 */
+    updateHUD() {
+        this.ui.score.innerText = this.player.score.toString().padStart(6, '0');
+        this.ui.level.innerText = this.level;
+        
+        const dotsLeft = this.maze.totalDots - this.player.dotsEaten;
+        this.ui.dots.innerText = dotsLeft.toString().padStart(3, '0');
+        
+        // ハイスコアのリアルタイム更新
+        if (this.player.score > this.saveSystem.data.highScore) {
+            this.ui.hiscore.innerText = this.player.score.toString().padStart(6, '0');
+            this.ui.hiscore.style.color = '#0f0';
+        }
+
+        // 残機アイコンの描画更新
+        this.ui.lives.innerHTML = '';
+        for (let i = 0; i < this.player.lives; i++) {
+            const lifeIcon = document.createElement('div');
+            lifeIcon.className = 'life-icon';
+            this.ui.lives.appendChild(lifeIcon);
+        }
+    }
+
+    /** 画面中央にテキストをアニメーション表示するユーティリティ */
+    showCenterMessage(mainStr, subStr, duration) {
+        this.ui.msgMain.innerText = mainStr;
+        this.ui.msgSub.innerText = subStr;
+        
+        this.ui.msgMain.style.opacity = '1';
+        this.ui.msgSub.style.opacity = '1';
+        
+        // CSSトランジションをリセットして発動させるための小技
+        this.ui.msgMain.style.transform = 'scale(0.5)';
+        requestAnimationFrame(() => {
+            this.ui.msgMain.style.transition = 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+            this.ui.msgMain.style.transform = 'scale(1.0)';
+        });
+
+        if (this.msgTimeout) clearTimeout(this.msgTimeout);
+        this.msgTimeout = setTimeout(() => {
+            this.ui.msgMain.style.opacity = '0';
+            this.ui.msgSub.style.opacity = '0';
+        }, duration);
+    }
+
+    /** プレイ中の行動に基づく実績(アチーブメント)の解除チェック */
+    checkAchievements() {
+        if (this.player.score >= 10000) achievements.unlock('score_10k', 'Score 10,000 Points', '🏅');
+        if (this.level >= 5) achievements.unlock('level_5', 'Reach Sector 5', '🗺️');
+        if (this.combo.comboCount >= 4) achievements.unlock('combo_4', 'Eat 4 Ghosts in one go!', '👻');
+        if (this.director.playerStealthTime > 60) achievements.unlock('ninja', 'Unseen for 60 seconds', '🥷');
+    }
+}
+
+// ============================================================================
+// BOOTSTRAP: DOM読み込み完了後にシステムを起動するエントリーポイント
+// ============================================================================
+window.addEventListener('DOMContentLoaded', () => {
+    // ユーザーの操作によってのみ音声再生とゲーム開始が許可されるため、
+    // インスタンス化はロード時に行い、ゲームループは待機状態にする。
+    const gameEngine = new GameEngine();
+    console.log("3D PAC-MAZE V6 ULTIMATE ENGINE INITIALIZED.");
+    console.log("Awaiting user input to commence boot sequence...");
+});
+
+// --- 第1部 ここまで ---
+</script>
+</body>
+</html>
