@@ -84,7 +84,7 @@
         #radar-container {
             position: absolute;
             top: 35%; /* 下エリアの中央付近 */
-            left: 50%;
+            left: 47%;
             transform: translate(-50%, -50%);
             width: 110px; /* ボタンと被らないよう少しコンパクトに */
             height: 110px;
@@ -896,8 +896,6 @@ class Renderer {
         this.ctx = this.mainCanvas.getContext('2d');
         this.radarCanvas = document.getElementById('radar-canvas');
         this.radarCtx = this.radarCanvas.getContext('2d');
-        this.rearCanvas = document.getElementById('rear-canvas');
-        this.rearCtx = this.rearCanvas.getContext('2d');
         this.resize();
         window.addEventListener('resize', () => this.resize());
     }
@@ -908,8 +906,6 @@ class Renderer {
         this.mainCanvas.width = this.w;
         this.mainCanvas.height = this.h;
         this.zBuffer = new Float32Array(this.w);
-        this.rearCanvas.width = 280;
-        this.rearCanvas.height = 160;
     }
 
     render(player, entities) {
@@ -919,14 +915,7 @@ class Renderer {
         this._drawSprites(player, entities, this.ctx, this.w, this.h, this.zBuffer, player.angle);
         this._drawRadar(player, entities);
 
-        // 後方描画
-        const rw = this.rearCanvas.width;
-        const rh = this.rearCanvas.height;
-        const rz = new Float32Array(rw);
-        const rearAngle = MathUtils.normalizeAngle(player.angle + Math.PI);
-        this._drawFloorAndCeiling(this.rearCtx, rw, rh);
-        this._castRays(player.x, player.y, rearAngle, this.rearCtx, rw, rh, rz);
-        this._drawSprites(player, entities, this.rearCtx, rw, rh, rz, rearAngle);
+
     }
 
     _drawFloorAndCeiling(ctx, w, h) {
