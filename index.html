@@ -158,6 +158,40 @@
     right: 20px;
     z-index: 50;
 }
+.overlay-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #000; /* 真っ黒にして後ろを隠す */
+            display: flex;
+            flex-direction: column;
+            justify-content: center; /* 縦方向中央 */
+            align-items: center;     /* 横方向中央 */
+            z-index: 3000;           /* 全ての要素より手前に表示 */
+            transition: opacity 0.5s;
+            padding: 20px;
+        }
+
+        /* --- 追加：スタートボタンのデザイン --- */
+        .btn-start {
+            margin-top: 30px;
+            padding: 12px 35px;
+            font-size: clamp(18px, 5vw, 24px);
+            font-family: inherit;
+            color: #000;
+            background: #0ff;
+            border: none;
+            box-shadow: 0 0 15px #0ff;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .hidden {
+            display: none !important;
+        }
 </style>
 </head>
 <body>
@@ -204,18 +238,24 @@
 
     <!-- スタート画面 -->
     <div id="start-screen" class="overlay-screen">
+        <!-- タイトル -->
         <h1 id="screen-title" class="title-glow">PACRI-MAN 3D</h1>
-        <div style="color: #f0f; font-size: 14px; margin-bottom: 10px;">
+        
+        <!-- ハイスコア -->
+        <div style="color: #f0f; font-size: 18px; margin-bottom: 30px; letter-spacing: 2px;">
             HI-SCORE: <span id="ui-hiscore">000000</span>
         </div>
-        <div class="menu-text">
-            左側スライド：前進・後退<br>
-            右側スライド：視点回転<br>
-        </div>
-        <button id="btn-start" class="btn-start">INITIALIZE</button>
-    </div>
-</div>
 
+        <!-- 操作説明 -->
+        <div style="color: #0ff; text-align: center; line-height: 1.8; margin-bottom: 40px; font-size: 14px;">
+            左画面スライド：前進・後退<br>
+            右画面スライド：視点旋回<br>
+            <span style="color: #888; font-size: 12px;">全てのドットを回収して脱出せよ</span>
+        </div>
+
+        <!-- 起動ボタン -->
+        <button id="btn-start" class="btn-start">INITIALIZE SYSTEM</button>
+    </div>
 <script>
 /**
  * ============================================================================
