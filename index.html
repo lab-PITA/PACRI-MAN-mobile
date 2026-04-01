@@ -2191,28 +2191,7 @@ class GameEngine {
             }
         }, 100);
     }
-        audio.playStartSound();
         
-        this.ui.btnStart.style.display = 'none';
-        
-        let glitchCount = 0;
-        const glitchInterval = setInterval(() => {
-            glitchCount++;
-            this.ui.startScreen.style.opacity = glitchCount % 2 === 0 ? '0.2' : '1';
-            if (glitchCount > 4) {
-                clearInterval(glitchInterval);
-                this.ui.startScreen.style.display = 'none'; 
-                this.ui.startScreen.classList.add('hidden');
-                
-                // 復活待ちならrespawn、それ以外なら新規スタート
-                if (isRestart) {
-                    this.respawn();
-                } else {
-                    this.startNewGame();
-                }
-            }
-        }, 100);
-    }
 
     /** ゲーム全体の初期化 (スコアや残機のリセット) */
     startNewGame() {
@@ -2589,7 +2568,7 @@ class GameEngine {
             this.ui.msgMain.style.opacity = '0';
             this.ui.msgSub.style.opacity = '0';
         }, duration);
- 
+ }
 
     /** プレイ中の行動に基づく実績(アチーブメント)の解除チェック */
     checkAchievements() {
