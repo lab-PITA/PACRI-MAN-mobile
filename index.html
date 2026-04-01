@@ -37,6 +37,9 @@
     display: flex;
     flex-direction: column; /* 縦に並べる */
     background: #000;
+    /* スマホで画面が跳ねたりリロードされたりするのを防ぐ */
+    overscroll-behavior-y: contain;
+    touch-action: none;
 }
 
 /* 上半分：3Dカメラエリア */
@@ -86,8 +89,8 @@
     position: absolute;
     bottom: 30px;
     left: 30px;
-    width: 120px;
-    height: 120px;
+    width: 110px;
+    height: 110px;
     background: rgba(0, 255, 255, 0.1);
     border: 2px solid rgba(0, 255, 255, 0.4);
     border-radius: 50%;
@@ -98,26 +101,37 @@
     position: absolute;
     top: 50%;
     left: 50%;
-    width: 50px;
-    height: 50px;
+    width: 45px;
+    height: 45px;
     background: #0ff;
     border-radius: 50%;
     transform: translate(-50%, -50%);
     box-shadow: 0 0 15px #0ff;
 }
 
-/* 不要なリアカメラは非表示 */
+/* 不要なパネル類を整理 */
 #rear-camera-container {
     display: none !important;
+}
+
+/* スマホ用タイトル文字の調整（改行防止） */
+.title-glow {
+    font-size: 11vw; /* 画面幅に合わせて自動調整 */
+    max-font-size: 64px;
+    color: #fff;
+    text-shadow: 0 0 10px #0ff, 0 0 20px #0ff;
+    margin-bottom: 10px;
+    text-align: center;
+    white-space: nowrap; /* 強制改行を防止 */
 }
 
 /* 下半分の右側に情報を寄せる */
 #status-container {
     position: absolute;
-    top: 20px;
-    right: 20px;
-    min-width: 150px;
-    padding: 10px;
+    top: 15px;
+    right: 15px;
+    min-width: 140px;
+    padding: 8px;
     z-index: 50;
 }
 #right-status-container {
@@ -396,8 +410,6 @@
         <canvas id="main-canvas"></canvas>
         <div class="scanlines"></div>
         <div id="damage-flash" class="warning-flash"></div>
-        
-        <!-- 通知と実績 -->
         <div id="achievement-container"></div>
         <div id="center-text-container">
             <div id="msg-main" class="main-message">READY</div>
@@ -407,39 +419,40 @@
 
     <!-- 下半分：操作エリア -->
     <div id="control-area">
-        <!-- 背景レーダー -->
         <div id="radar-container">
             <canvas id="radar-canvas"></canvas>
         </div>
 
-        <!-- ジョイスティック -->
         <div id="joystick-container">
             <div id="joystick-stick"></div>
         </div>
 
-        <!-- ステータスUI -->
+        <!-- ステータスUI (ui-levelを追加) -->
         <div id="status-container" class="neon-panel">
             <div class="status-row">
                 <span class="status-label">SCORE</span>
-                <span id="ui-score" class="status-value-yellow" style="font-size: 24px;">000000</span>
+                <span id="ui-score" class="status-value-yellow" style="font-size: 22px;">000000</span>
             </div>
-            <div class="status-row">
-                <span id="ui-dots" class="status-value-cyan">000</span>
-                <span class="status-label">DOTS</span>
+            <div class="status-row" style="font-size: 12px; margin-top: 5px;">
+                <span>LV <span id="ui-level" class="status-value-cyan">1</span></span>
+                <span style="margin-left: 10px;"><span id="ui-dots" class="status-value-cyan">000</span> DOTS</span>
             </div>
         </div>
 
-        <!-- 残機表示 -->
         <div id="right-status-container">
             <div id="ui-lives" class="lives-container"></div>
         </div>
     </div>
 
-    <!-- スタート画面 -->
+    <!-- スタート画面 (ui-hiscoreを追加) -->
     <div id="start-screen" class="overlay-screen">
         <h1 id="screen-title" class="title-glow">PACRI-MAN 3D</h1>
-        <div style="color: #aaa; text-align: center; margin-top: 20px;">
-            Touch Left: Move / Touch Right: Turn
+        <div style="color: #f0f; font-size: 14px; margin-bottom: 20px;">
+            HI-SCORE: <span id="ui-hiscore">000000</span>
+        </div>
+        <div style="color: #aaa; text-align: center; font-size: 12px; line-height: 1.6;">
+            Touch Left: Move / Touch Right: Turn<br>
+            Avoid Ghosts. Eat all dots.
         </div>
         <button id="btn-start" class="btn-start">INITIALIZE</button>
     </div>
@@ -547,9 +560,9 @@ class MathUtils {
 
 class InputMgr {
     constructor() {
-        this.keys = {}; // キーボード互換用
-        this.stickY = 0; // 前後移動量 (-1.0 ～ 1.0)
-        this.swipeDeltaX = 0; // 視点回転量
+        this.keys = {}; 
+        this.stickY = 0; 
+        this.swipeDeltaX = 0; 
         
         this.touchIdStick = null;
         this.touchIdSwipe = null;
@@ -562,14 +575,12 @@ class InputMgr {
     }
 
     _handleTouch(e) {
-        if (e.type === 'touchstart' || e.type === 'touchmove' || e.type === 'touchend') {
-            e.preventDefault();
-        }
+        if (e.cancelable) e.preventDefault();
 
         const rect = document.getElementById('joystick-container').getBoundingClientRect();
         const stickMax = 50;
 
-        if (e.type === 'touchend') {
+        if (e.type === 'touchend' || e.type === 'touchcancel') {
             for (let t of e.changedTouches) {
                 if (t.identifier === this.touchIdStick) {
                     this.touchIdStick = null;
@@ -584,7 +595,6 @@ class InputMgr {
         }
 
         for (let t of e.touches) {
-            // ジョイスティック操作
             const isInsideInitial = (t.clientX >= rect.left && t.clientX <= rect.right && t.clientY >= rect.top && t.clientY <= rect.bottom);
             
             if (this.touchIdStick === null && isInsideInitial && e.type === 'touchstart') {
@@ -593,31 +603,26 @@ class InputMgr {
             } else if (t.identifier === this.touchIdStick) {
                 const dy = t.clientY - this.stickStartPos.y;
                 const dist = Math.min(stickMax, Math.abs(dy));
-                this.stickY = -(dy / stickMax); // 上に動かすと正(前進)
-                
+                this.stickY = -(dy / stickMax);
                 const visualY = Math.sign(dy) * dist;
                 document.getElementById('joystick-stick').style.transform = `translate(-50%, calc(-50% + ${visualY}px))`;
             } 
-            // 視点操作 (ジョイスティック以外の指)
             else if (this.touchIdSwipe === null && e.type === 'touchstart') {
                 this.touchIdSwipe = t.identifier;
                 this.lastSwipeX = t.clientX;
             } else if (t.identifier === this.touchIdSwipe) {
                 const dx = t.clientX - this.lastSwipeX;
-                this.swipeDeltaX = dx * 0.005; // 回転感度
+                this.swipeDeltaX = dx * 0.005; 
                 this.lastSwipeX = t.clientX;
             }
         }
     }
 
-    update() {
-        // スワイプ回転量は毎フレーム微調整が必要な場合ここに書く
-    }
-
-    // 互換性維持
+    update() {}
     isDown(code) { return !!this.keys[code]; }
     isJustPressed(code) { return !!this.keys[code]; }
 }
+
 
 
 // ----------------------------------------------------------------------------
@@ -1638,19 +1643,16 @@ class Player {
         this._checkItemCollisions(particles);
     }
 
-       _handleRotation(dt, inputMgr) {
-        // ★修正: スワイプ量(swipeDeltaX)に応じてターゲット角度を直接変更する
+          _handleRotation(dt, inputMgr) {
         if (inputMgr.swipeDeltaX !== 0) {
-            this.targetAngle += inputMgr.swipeDeltaX * 10; // 感度調整
-            inputMgr.swipeDeltaX = 0; // 適用したらリセット
+            this.targetAngle += inputMgr.swipeDeltaX * 10;
+            inputMgr.swipeDeltaX = 0; 
         }
-
         const diff = this.targetAngle - this.angle;
         if (Math.abs(diff) > 0.01) {
             this.angle += diff * 15 * dt; 
         } else {
             this.angle = this.targetAngle;
-            // 角度の正規化
             this.angle = MathUtils.normalizeAngle(this.angle);
             this.targetAngle = MathUtils.normalizeAngle(this.targetAngle);
         }
@@ -1660,23 +1662,16 @@ class Player {
         this.isMoving = false;
         this.makingNoise = false;
         let moveStep = 0;
-
-        // ★修正: キー入力の代わりにスティックの傾き(stickY)を使用
         if (Math.abs(inputMgr.stickY) > 0.1) {
             moveStep = inputMgr.stickY * this.speed * dt;
             this.isMoving = true;
             this.makingNoise = true; 
         }
-
         if (moveStep !== 0) {
-            // 移動計算（前方方向へのベクトル）
             const nx = this.x + Math.cos(this.targetAngle) * moveStep;
             const ny = this.y + Math.sin(this.targetAngle) * moveStep;
-
             const radius = GAME_CONFIG.TILE_SIZE * 0.2;
             const ts = GAME_CONFIG.TILE_SIZE;
-
-            // 衝突判定
             if (!this.maze.isWall(Math.floor((nx + Math.sign(Math.cos(this.targetAngle)) * radius) / ts), Math.floor(this.y / ts))) {
                 this.x = nx;
             }
