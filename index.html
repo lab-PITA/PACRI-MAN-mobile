@@ -498,36 +498,10 @@ class AudioEngine {
     }
 
     /** 効果音: ゴーストを食べる音 */
-    playEatGhostSound() {
-        for(let i=0; i<3; i++) {
-            setTimeout(() => {
-            if (this.player.lives > 0) {
-                // ★勝手に復活せず、リスタート画面を表示する
-                this.gameState = 'RESTART_WAIT'; 
-                this.ui.startScreen.style.display = 'flex';
-                this.ui.startScreen.classList.remove('hidden');
-                this.ui.startScreen.style.background = 'rgba(0, 0, 0, 0.8)';
-                this.ui.startScreen.style.opacity = '1';
-                
-                document.getElementById('screen-title').innerText = 'SYSTEM RECOVERY';
-                document.getElementById('screen-title').style.color = '#0ff';
-                
-                // 説明文を「残機数」の表示に変える
-                const menuText = this.ui.startScreen.querySelector('.menu-text') || this.ui.startScreen.querySelector('div[style*="color: #0ff"]');
-                if (menuText) {
-                    menuText.innerHTML = `
-                        REMAINING LIVES: ${this.player.lives}<br>
-                        <span style="color: #888;">準備ができたら再起動してください</span>
-                    `;
-                }
-                
-                this.ui.btnStart.innerText = 'RESTART SYSTEM';
-                this.ui.btnStart.style.display = 'block';
-            } else {
-                this.handleGameOver();
-            }
-        }, 3000);
-
+playEatGhostSound() {
+        this.playTone(800, 'square', 0.2, 0.5);
+        setTimeout(() => this.playTone(1200, 'square', 0.2, 0.5), 50);
+    }
     /** 効果音: スタート時のシステム起動音 */
     playStartSound() {
         this.playTone(440, 'square', 0.1);
@@ -921,7 +895,7 @@ class Renderer {
         this.ctx = this.mainCanvas.getContext('2d');
         this.radarCanvas = document.getElementById('radar-canvas');
         this.radarCtx = this.radarCanvas.getContext('2d');
-        // ★修正: リアカメラの取得を削除
+        // rearCanvas 関連の2行を完全に削除してエラーを防止
         this.resize();
         window.addEventListener('resize', () => this.resize());
     }
@@ -2294,13 +2268,34 @@ class GameEngine {
 
 /** 「INITIALIZE SYSTEM」ボタン押下時の演出と起動処理 */
     bootSequence() {
-        // 判定可能な状態リストを作成
+        // MENU, GAMEOVER, RESTART_WAIT のいずれかであれば実行可能にする
         const validStates = ['MENU', 'GAMEOVER', 'RESTART_WAIT'];
         if (!validStates.includes(this.gameState)) return;
         
         const isRestart = (this.gameState === 'RESTART_WAIT');
         
         audio.resume();
+        audio.playStartSound();
+        
+        this.ui.btnStart.style.display = 'none';
+        
+        let glitchCount = 0;
+        const glitchInterval = setInterval(() => {
+            glitchCount++;
+            this.ui.startScreen.style.opacity = glitchCount % 2 === 0 ? '0.2' : '1';
+            if (glitchCount > 4) {
+                clearInterval(glitchInterval);
+                this.ui.startScreen.style.display = 'none'; 
+                this.ui.startScreen.classList.add('hidden');
+                
+                if (isRestart) {
+                    this.respawn(); // その場から再開
+                } else {
+                    this.startNewGame(); // 最初から
+                }
+            }
+        }, 100);
+    }
         audio.playStartSound();
         
         this.ui.btnStart.style.display = 'none';
