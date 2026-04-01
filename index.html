@@ -451,8 +451,10 @@
             HI-SCORE: <span id="ui-hiscore">000000</span>
         </div>
         <div style="color: #aaa; text-align: center; font-size: 12px; line-height: 1.6;">
-            Touch Left: Move / Touch Right: Turn<br>
-            Avoid Ghosts. Eat all dots.
+            スティックで前進・後退<br>
+            スワイプで左右に旋回<br>
+            Mission:ゴーストを避けながら、すべてのドットを食べること.
+
         </div>
         <button id="btn-start" class="btn-start">INITIALIZE</button>
     </div>
@@ -2460,7 +2462,11 @@ class GameEngine {
         };
 
         // イベントバインディング
-        this.ui.btnStart.addEventListener('click', () => this.bootSequence());
+        ['click', 'touchstart'].forEach(type => {
+            this.ui.btnStart.addEventListener(type, (e) => {
+                e.preventDefault();
+                this.bootSequence();
+            }, { passive: false });
         window.addEventListener('powerPelletEaten', () => this.triggerPowerMode());
 
         // 初期UIセット
