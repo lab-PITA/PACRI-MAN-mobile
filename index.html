@@ -83,7 +83,7 @@
         /* レーダー：下のエリアの「中央」に配置 */
         #radar-container {
             position: absolute;
-            top: 42%; /* 下エリアの中央付近 */
+            top: 40%; /* 下エリアの中央付近 */
             left: 50%;
             transform: translate(-50%, -50%);
             width: 110px; /* ボタンと被らないよう少しコンパクトに */
@@ -124,7 +124,7 @@
         /* 回転ボタン：右側に寄せて配置 */
         .turn-btn {
             position: absolute;
-            bottom: 80px; /* マップの下端に合わせる */
+            bottom: 60px; /* マップの下端に合わせる */
             width: 70px;
             height: 70px;
             background: rgba(0, 255, 255, 0.1);
@@ -885,6 +885,7 @@ class MazeEngine {
     }
 }
 
+
 // ----------------------------------------------------------------------------
 // 8. RENDERER (3D レイトレーシング＆UI描画エンジン)
 // ----------------------------------------------------------------------------
@@ -895,102 +896,227 @@ class Renderer {
         this.ctx = this.mainCanvas.getContext('2d');
         this.radarCanvas = document.getElementById('radar-canvas');
         this.radarCtx = this.radarCanvas.getContext('2d');
+        this.rearCanvas = document.getElementById('rear-canvas');
+        this.rearCtx = this.rearCanvas.getContext('2d');
         this.resize();
         window.addEventListener('resize', () => this.resize());
     }
 
     resize() {
-        const container = document.getElementById('view-area');
-        if (!container) return;
-        this.w = container.clientWidth;
-        this.h = container.clientHeight;
+        this.w = window.innerWidth;
+        this.h = window.innerHeight;
         this.mainCanvas.width = this.w;
         this.mainCanvas.height = this.h;
         this.zBuffer = new Float32Array(this.w);
-        this.radarCanvas.width = 120;
-        this.radarCanvas.height = 120;
+        this.rearCanvas.width = 280;
+        this.rearCanvas.height = 160;
     }
 
     render(player, entities) {
-        const ctx = this.ctx;
-        ctx.fillStyle = GAME_CONFIG.COLORS.CEILING; ctx.fillRect(0, 0, this.w, this.h/2);
-        ctx.fillStyle = GAME_CONFIG.COLORS.FLOOR; ctx.fillRect(0, this.h/2, this.w, this.h/2);
-        
-        this._castRays(player, this.zBuffer);
-        this._drawSprites(player, entities, this.zBuffer);
+        // 前方描画
+        this._drawFloorAndCeiling(this.ctx, this.w, this.h);
+        this._castRays(player.x, player.y, player.angle, this.ctx, this.w, this.h, this.zBuffer);
+        this._drawSprites(player, entities, this.ctx, this.w, this.h, this.zBuffer, player.angle);
         this._drawRadar(player, entities);
+
+        // 後方描画
+        const rw = this.rearCanvas.width;
+        const rh = this.rearCanvas.height;
+        const rz = new Float32Array(rw);
+        const rearAngle = MathUtils.normalizeAngle(player.angle + Math.PI);
+        this._drawFloorAndCeiling(this.rearCtx, rw, rh);
+        this._castRays(player.x, player.y, rearAngle, this.rearCtx, rw, rh, rz);
+        this._drawSprites(player, entities, this.rearCtx, rw, rh, rz, rearAngle);
     }
 
-    _castRays(player, zBuffer) {
-        const ts = 64;
-        const projDist = (this.w/2) / Math.tan(GAME_CONFIG.FOV/2);
-        for (let i=0; i<this.w; i++) {
-            const cameraX = 2*i/this.w-1;
-            const rayDirX = Math.cos(player.angle) + Math.cos(player.angle+Math.PI/2)*Math.tan(GAME_CONFIG.FOV/2)*cameraX;
-            const rayDirY = Math.sin(player.angle) + Math.sin(player.angle+Math.PI/2)*Math.tan(GAME_CONFIG.FOV/2)*cameraX;
-            let mapX = Math.floor(player.x/ts), mapY = Math.floor(player.y/ts);
-            const deltaX = Math.abs(1/rayDirX), deltaY = Math.abs(1/rayDirY);
+    _drawFloorAndCeiling(ctx, w, h) {
+        ctx.fillStyle = GAME_CONFIG.COLORS.CEILING;
+        ctx.fillRect(0, 0, w, h / 2);
+        const grad = ctx.createLinearGradient(0, h/2, 0, h);
+        grad.addColorStop(0, '#000000');
+        grad.addColorStop(1, GAME_CONFIG.COLORS.FLOOR);
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, h / 2, w, h / 2);
+    }
+
+    _castRays(px, py, pa, ctx, cw, ch, zBuf) {
+        const ts = GAME_CONFIG.TILE_SIZE;
+        const projDist = (cw / 2) / Math.tan(GAME_CONFIG.FOV / 2);
+        for (let i = 0; i < cw; i++) {
+            const cameraX = 2 * i / cw - 1;
+            const rayDirX = Math.cos(pa) + Math.cos(pa + Math.PI/2) * Math.tan(GAME_CONFIG.FOV/2) * cameraX;
+            const rayDirY = Math.sin(pa) + Math.sin(pa + Math.PI/2) * Math.tan(GAME_CONFIG.FOV/2) * cameraX;
+            let mapX = Math.floor(px / ts), mapY = Math.floor(py / ts);
+            const deltaX = Math.abs(1 / rayDirX), deltaY = Math.abs(1 / rayDirY);
             let stepX, stepY, sideX, sideY;
-            if (rayDirX<0){ stepX=-1; sideX=(player.x/ts-mapX)*deltaX; } else { stepX=1; sideX=(mapX+1-player.x/ts)*deltaX; }
-            if (rayDirY<0){ stepY=-1; sideY=(player.y/ts-mapY)*deltaY; } else { stepY=1; sideY=(mapY+1-player.y/ts)*deltaY; }
-            let hit=0, side=0;
-            while(hit===0){
-                if(sideX<sideY){ sideX+=deltaX; mapX+=stepX; side=0; } else { sideY+=deltaY; mapY+=stepY; side=1; }
-                if(this.maze.isWall(mapX, mapY)) hit=1;
+            if (rayDirX < 0) { stepX = -1; sideX = (px/ts - mapX) * deltaX; } else { stepX = 1; sideX = (mapX + 1.0 - px/ts) * deltaX; }
+            if (rayDirY < 0) { stepY = -1; sideY = (py/ts - mapY) * deltaY; } else { stepY = 1; sideY = (mapY + 1.0 - py/ts) * deltaY; }
+            let hit = 0, side = 0;
+            while (hit === 0) {
+                if (sideX < sideY) { sideX += deltaX; mapX += stepX; side = 0; } else { sideY += deltaY; mapY += stepY; side = 1; }
+                if (this.maze.isWall(mapX, mapY)) hit = 1;
             }
-            const pdist = (side===0 ? (mapX-player.x/ts+(1-stepX)/2)/rayDirX : (mapY-player.y/ts+(1-stepY)/2)/rayDirY)*ts;
-            zBuffer[i] = pdist;
-            const lh = (ts/pdist)*projDist;
-            const b = Math.max(0, 1-pdist/(GAME_CONFIG.MAX_DEPTH*ts));
-            this.ctx.fillStyle = side===1 ? `rgb(0,${20*b},${30*b})` : `rgb(0,${30*b},${45*b})`;
-            this.ctx.fillRect(i, this.h/2-lh/2, 1, lh);
+            const pdist = (side === 0 ? (mapX - px/ts + (1 - stepX)/2) / rayDirX : (mapY - py/ts + (1 - stepY)/2) / rayDirY) * ts;
+            zBuf[i] = pdist;
+            const lh = Math.floor((ts / pdist) * projDist);
+            const b = Math.max(0, 1 - pdist / (GAME_CONFIG.MAX_DEPTH * ts));
+            ctx.fillStyle = side === 1 ? `rgb(0,${20*b},${30*b})` : `rgb(0,${30*b},${45*b})`;
+            ctx.fillRect(i, ch/2 - lh/2, 1, lh);
+            if(pdist < GAME_CONFIG.MAX_DEPTH * ts) {
+                ctx.fillStyle = `rgba(0, 255, 255, ${b * 0.8})`;
+                ctx.fillRect(i, ch/2 - lh/2, 1, 2); ctx.fillRect(i, ch/2 + lh/2 - 2, 1, 2);
+            }
         }
     }
 
-    _drawSprites(player, entities, zBuffer) {
-        const ts = 64;
-        const projDist = (this.w/2) / Math.tan(GAME_CONFIG.FOV/2);
+    _drawSprites(player, entities, ctx, cw, ch, zBuf, viewAngle) {
+        const ts = GAME_CONFIG.TILE_SIZE;
+        const projDist = (cw / 2) / Math.tan(GAME_CONFIG.FOV / 2);
         const sprites = entities.filter(e => e.active).map(e => {
-            const dx = e.x-player.x, dy = e.y-player.y;
-            const dist = Math.sqrt(dx*dx+dy*dy);
-            let a = Math.atan2(dy, dx)-player.angle;
-            while(a<-Math.PI) a+=Math.PI*2; while(a>=Math.PI) a-=Math.PI*2;
+            const dx = e.x - player.x, dy = e.y - player.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            let a = Math.atan2(dy, dx) - viewAngle;
+            while (a < -Math.PI) a += Math.PI * 2; while (a >= Math.PI) a -= Math.PI * 2;
             return { e, dist, a };
-        }).filter(s => s.dist < GAME_CONFIG.MAX_DEPTH*ts && Math.abs(s.a) < GAME_CONFIG.FOV);
-        sprites.sort((a,b)=>b.dist-a.dist);
-        for(const s of sprites) {
-            const dist = s.dist * Math.cos(s.a);
-            const sx = (this.w/2) + Math.tan(s.a)*projDist;
-            if (sx<0 || sx>=this.w || dist>=zBuffer[Math.floor(sx)]) continue;
-            const size = (ts/dist)*projDist;
-            const scale = s.e.type==='DOT'?0.2:s.e.type==='POWER'?0.4:0.8;
-            const ds = size*scale;
-            this.ctx.fillStyle = s.e.type.startsWith('GHOST') ? (s.e.state==='SCARED'?'#00f':s.e.color) : (s.e.type==='POWER'?'#0fa':'#ff0');
-            this.ctx.beginPath(); this.ctx.arc(sx, this.h/2+(s.e.type==='DOT'?size*0.35:0), ds/2, 0, Math.PI*2); this.ctx.fill();
+        }).filter(s => s.dist < GAME_CONFIG.MAX_DEPTH * ts && Math.abs(s.a) < GAME_CONFIG.FOV);
+        sprites.sort((a, b) => b.dist - a.dist);
+        for (const s of sprites) {
+            const cosA = Math.cos(s.a); if (cosA <= 0) continue;
+            const dist = s.dist * cosA;
+            const sx = (cw / 2) + Math.tan(s.a) * projDist;
+            if (sx < 0 || sx >= cw || dist >= zBuf[Math.floor(sx)]) continue;
+            const size = (ts / dist) * projDist;
+            const scale = s.e.type === 'DOT' ? 0.2 : s.e.type === 'POWER' ? 0.4 : 0.8;
+            const ds = size * scale;
+            const b = Math.max(0, 1 - dist / (GAME_CONFIG.MAX_DEPTH * ts));
+            ctx.globalAlpha = b* 0.8;
+            const cy = ch / 2;
+            if (s.e.type === 'DOT' || s.e.type === 'POWER') {
+    const dotY = cy + (size * 0.35); // ★ 0.35を大きくするともっと床に近づきます
+    ctx.fillStyle = s.e.type === 'POWER' ? GAME_CONFIG.COLORS.POWER_PELLET : GAME_CONFIG.COLORS.DOT;
+    ctx.beginPath(); 
+    ctx.arc(sx, dotY, ds/2, 0, Math.PI*2); // ★ ここを cy から dotY に変える
+    ctx.fill();
+}
+            else if (s.e.type.startsWith('GHOST')) {
+                // ゴーストのディテール復元
+                ctx.fillStyle = s.e.state === 'SCARED' ? '#00f' : s.e.color;
+                ctx.beginPath();
+                ctx.arc(sx, cy - ds/4, ds/2, Math.PI, 0);
+                ctx.lineTo(sx + ds/2, cy + ds/2);
+                for(let i=0; i<=3; i++) {
+                    const wx = sx + ds/2 - (ds/3)*i;
+                    const wy = cy + ds/2 - (i%2===0 ? 0 : ds/4);
+                    ctx.lineTo(wx, wy);
+                }
+                ctx.lineTo(sx - ds/2, cy + ds/2); ctx.fill();
+                if (s.e.state !== 'SCARED') {
+                    ctx.fillStyle = '#fff';
+                    ctx.beginPath(); ctx.arc(sx - ds/5, cy - ds/4, ds/6, 0, Math.PI*2); ctx.fill();
+                    ctx.beginPath(); ctx.arc(sx + ds/5, cy - ds/4, ds/6, 0, Math.PI*2); ctx.fill();
+                    ctx.fillStyle = '#00f';
+                    ctx.beginPath(); ctx.arc(sx - ds/5, cy - ds/4, ds/12, 0, Math.PI*2); ctx.fill();
+                    ctx.beginPath(); ctx.arc(sx + ds/5, cy - ds/4, ds/12, 0, Math.PI*2); ctx.fill();
+                }
+            } else if (s.e.type === 'PARTICLE') {
+                ctx.fillStyle = s.e.color; ctx.globalAlpha = s.e.life * b;
+                ctx.fillRect(sx - s.e.size/2, cy - s.e.size/2, s.e.size, s.e.size);
+            }
+            ctx.globalAlpha = 1.0;
         }
     }
+/** 画面リサイズ時の処理：各キャンバスの解像度を決定する */
+    resize() {
+        this.w = window.innerWidth;
+        this.h = window.innerHeight;
+        this.mainCanvas.width = this.w;
+        this.mainCanvas.height = this.h;
+        this.zBuffer = new Float32Array(this.w);
+        
+        // ★マップ（レーダー）を 180x180 の正方形に固定
+        this.radarCanvas.width = 180;
+        this.radarCanvas.height = 180;
+        
+        // リアカメラの解像度
+        this.rearCanvas.width = 280;
+        this.rearCanvas.height = 160;
+    }
 
+    /** 描画のメイン処理 */
+    render(player, entities) {
+        // 前方描画
+        this._drawFloorAndCeiling(this.ctx, this.w, this.h);
+        this._castRays(player.x, player.y, player.angle, this.ctx, this.w, this.h, this.zBuffer);
+        this._drawSprites(player, entities, this.ctx, this.w, this.h, this.zBuffer, player.angle);
+        
+        // レーダー（マップ）の描画
+        this._drawRadar(player, entities);
+
+        // 後方カメラの描画
+        const rw = this.rearCanvas.width;
+        const rh = this.rearCanvas.height;
+        const rz = new Float32Array(rw);
+        const rearAngle = MathUtils.normalizeAngle(player.angle + Math.PI);
+        this._drawFloorAndCeiling(this.rearCtx, rw, rh);
+        this._castRays(player.x, player.y, rearAngle, this.rearCtx, rw, rh, rz);
+        this._drawSprites(player, entities, this.rearCtx, rw, rh, rz, rearAngle);
+    }
+
+    // --- (途中、_drawFloorAndCeiling / _castRays / _drawSprites はそのまま残してください) ---
+
+    /** UI: プロキシミティ・レーダーの歪み修正版 (内部解像度に合わせる) */
     _drawRadar(player, entities) {
-        const ctx = this.radarCtx; const w = this.radarCanvas.width; const h = this.radarCanvas.height;
-        ctx.clearRect(0,0,w,h);
-        const scale = 22, ts = 64;
-        const offX = w/2 - (player.x/ts)*scale, offY = h/2 - (player.y/ts)*scale;
-        const px = Math.floor(player.x/ts), py = Math.floor(player.y/ts), vr = 5;
-        ctx.fillStyle = 'rgba(0,255,255,0.6)';
-        for(let y=py-vr; y<=py+vr; y++) {
-            for(let x=px-vr; x<=px+vr; x++) {
-                if(this.maze.isWall(x,y)) {
-                    ctx.fillRect(offX+x*scale, offY+y*scale, scale-1, scale-1);
+        const ctx = this.radarCtx;
+        const w = this.radarCanvas.width; // 180
+        const h = this.radarCanvas.height; // 180
+        const ts = GAME_CONFIG.TILE_SIZE;
+        ctx.clearRect(0, 0, w, h);
+        
+        // 縦横共通のスケールを使用
+        const scale = 15; 
+        const offX = (w / 2) - (player.x / ts) * scale;
+        const offY = (h / 2) - (player.y / ts) * scale;
+
+        // 壁の描画
+        ctx.fillStyle = 'rgba(0, 255, 255, 0.4)';
+        for (let y = 0; y < this.maze.height; y++) {
+            for (let x = 0; x < this.maze.width; x++) {
+                if (this.maze.grid[y][x] === 1) {
+                    const dx = offX + x * scale;
+                    const dy = offY + y * scale;
+                    // キャンバスの範囲内のみ描画
+                    if (dx > -scale && dx < w && dy > -scale && dy < h) {
+                        ctx.fillRect(dx, dy, scale + 0.5, scale + 0.5);
+                    }
                 }
             }
         }
+
+        // ゴーストの描画
         entities.forEach(e => {
-            if(!e.active || !e.type.startsWith('GHOST')) return;
-            const gx = offX+(e.x/ts)*scale, gy = offY+(e.y/ts)*scale;
-            if(gx>0&&gx<w&&gy>0&&gy<h){ ctx.fillStyle=e.state==='SCARED'?'#00f':'#f00'; ctx.beginPath(); ctx.arc(gx,gy,5,0,Math.PI*2); ctx.fill(); }
+            if (!e.active || !e.type.startsWith('GHOST')) return;
+            const gx = offX + (e.x / ts) * scale;
+            const gy = offY + (e.y / ts) * scale;
+            if (gx > 0 && gx < w && gy > 0 && gy < h) {
+                ctx.fillStyle = e.state === 'SCARED' ? '#00f' : '#f00';
+                ctx.beginPath(); 
+                ctx.arc(gx, gy, 4, 0, Math.PI * 2); 
+                ctx.fill();
+            }
         });
-        ctx.save(); ctx.translate(w/2, h/2); ctx.rotate(player.angle);
-        ctx.fillStyle = '#0f0'; ctx.beginPath(); ctx.moveTo(12,0); ctx.lineTo(-8,-7); ctx.lineTo(-8,7); ctx.closePath(); ctx.fill(); ctx.restore();
+
+        // プレイヤーの描画 (中央に固定)
+        ctx.save();
+        ctx.translate(w / 2, h / 2);
+        ctx.rotate(player.angle);
+        ctx.fillStyle = '#0f0';
+        ctx.beginPath();
+        ctx.moveTo(8, 0); 
+        ctx.lineTo(-6, -5); 
+        ctx.lineTo(-6, 5);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
     }
 }
     
