@@ -116,13 +116,22 @@
 
 /* スマホ用タイトル文字の調整（改行防止） */
 .title-glow {
-    font-size: 11vw; /* 画面幅に合わせて自動調整 */
-    max-font-size: 64px;
+    font-size: clamp(28px, 8.5vw, 50px); 
     color: #fff;
     text-shadow: 0 0 10px #0ff, 0 0 20px #0ff;
     margin-bottom: 10px;
     text-align: center;
-    white-space: nowrap; /* 強制改行を防止 */
+    white-space: nowrap;
+}
+
+/* 説明文：スマホでも読みやすいサイズに自動調整 */
+.menu-text {
+    font-size: clamp(12px, 3.5vw, 16px);
+    color: #aaa;
+    text-align: center;
+    line-height: 1.6;
+    margin-bottom: 20px;
+    padding: 0 20px;
 }
 
 /* 下半分の右側に情報を寄せる */
@@ -445,20 +454,21 @@
     </div>
 
     <!-- スタート画面 (ui-hiscoreを追加) -->
-    <div id="start-screen" class="overlay-screen">
+   <div id="start-screen" class="overlay-screen">
         <h1 id="screen-title" class="title-glow">PACRI-MAN 3D</h1>
-        <div style="color: #f0f; font-size: 14px; margin-bottom: 20px;">
+        
+        <div style="color: #f0f; font-size: 14px; margin-bottom: 10px;">
             HI-SCORE: <span id="ui-hiscore">000000</span>
         </div>
-        <div style="color: #aaa; text-align: center; font-size: 12px; line-height: 1.6;">
-            スティックで前進・後退<br>
-            スワイプで左右に旋回<br>
-            Mission:ゴーストを避けながら、すべてのドットを食べること.
 
+        <div class="menu-text">
+            左側スライド：前進・後退<br>
+            右側スライド：視点回転<br>
+            <span style="font-size: 0.9em; color: #888;">全てのドットを食べてミッションを完了せよ</span>
         </div>
+
         <button id="btn-start" class="btn-start">INITIALIZE</button>
     </div>
-</div>
 
 <script>
 /**
@@ -2462,11 +2472,7 @@ class GameEngine {
         };
 
         // イベントバインディング
-        ['click', 'touchstart'].forEach(type => {
-            this.ui.btnStart.addEventListener(type, (e) => {
-                e.preventDefault();
-                this.bootSequence();
-            }, { passive: false });
+        this.ui.btnStart.addEventListener('click', () => this.bootSequence());
         window.addEventListener('powerPelletEaten', () => this.triggerPowerMode());
 
         // 初期UIセット
