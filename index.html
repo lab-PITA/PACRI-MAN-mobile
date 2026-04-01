@@ -83,7 +83,7 @@
         /* レーダー：下のエリアの「中央」に配置 */
         #radar-container {
             position: absolute;
-            top: 40%; /* 下エリアの中央付近 */
+            top: 35%; /* 下エリアの中央付近 */
             left: 50%;
             transform: translate(-50%, -50%);
             width: 110px; /* ボタンと被らないよう少しコンパクトに */
@@ -2294,10 +2294,8 @@ class GameEngine {
         if (!validStates.includes(this.gameState)) return;
         
         const isRestart = (this.gameState === 'RESTART_WAIT');
-        
         audio.resume();
         audio.playStartSound();
-        
         this.ui.btnStart.style.display = 'none';
         
         let glitchCount = 0;
@@ -2308,17 +2306,12 @@ class GameEngine {
                 clearInterval(glitchInterval);
                 this.ui.startScreen.style.display = 'none'; 
                 this.ui.startScreen.classList.add('hidden');
-                
-                if (isRestart) {
-                    this.respawn();
-                } else {
-                    this.startNewGame();
-                }
+                if (isRestart) this.respawn(); else this.startNewGame();
             }
         }, 100);
     }
-        
 
+    
     /** ゲーム全体の初期化 (スコアや残機のリセット) */
     startNewGame() {
         this.saveSystem.incrementStat('playCount');
