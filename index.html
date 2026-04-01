@@ -149,7 +149,63 @@
     right: 20px;
     z-index: 50;
 }
+</style>
+</head>
+<body>
 
+<div id="game-container">
+    <!-- 上半分：3Dビューエリア -->
+    <div id="view-area">
+        <canvas id="main-canvas"></canvas>
+        <div class="scanlines"></div>
+        <div id="damage-flash" class="warning-flash"></div>
+        <div id="achievement-container"></div>
+        <div id="center-text-container">
+            <div id="msg-main" class="main-message">READY</div>
+            <div id="msg-sub" class="sub-message">ENGAGE!!</div>
+        </div>
+    </div>
+
+    <!-- 下半分：操作エリア -->
+    <div id="control-area">
+        <div id="radar-container">
+            <canvas id="radar-canvas"></canvas>
+        </div>
+
+        <div id="joystick-container">
+            <div id="joystick-stick"></div>
+        </div>
+
+        <!-- ステータスUI -->
+        <div id="status-container" class="neon-panel">
+            <div class="status-row">
+                <span class="status-label">SCORE</span>
+                <span id="ui-score" class="status-value-yellow" style="font-size: 22px;">000000</span>
+            </div>
+            <div class="status-row" style="font-size: 12px; margin-top: 5px;">
+                <span>LV <span id="ui-level" class="status-value-cyan">1</span></span>
+                <span style="margin-left: 10px;"><span id="ui-dots" class="status-value-cyan">000</span> DOTS</span>
+            </div>
+        </div>
+
+        <div id="right-status-container">
+            <div id="ui-lives" class="lives-container"></div>
+        </div>
+    </div>
+
+    <!-- スタート画面 -->
+    <div id="start-screen" class="overlay-screen">
+        <h1 id="screen-title" class="title-glow">PACRI-MAN 3D</h1>
+        <div style="color: #f0f; font-size: 14px; margin-bottom: 10px;">
+            HI-SCORE: <span id="ui-hiscore">000000</span>
+        </div>
+        <div class="menu-text">
+            左側スライド：前進・後退<br>
+            右側スライド：視点回転<br>
+        </div>
+        <button id="btn-start" class="btn-start">INITIALIZE</button>
+    </div>
+</div>
 
 <script>
 /**
@@ -784,12 +840,10 @@ class Renderer {
         this.ctx = this.mainCanvas.getContext('2d');
         this.radarCanvas = document.getElementById('radar-canvas');
         this.radarCtx = this.radarCanvas.getContext('2d');
-        this.rearCanvas = document.getElementById('rear-canvas');
-        this.rearCtx = this.rearCanvas.getContext('2d');
+        // ★修正: リアカメラの取得を削除
         this.resize();
         window.addEventListener('resize', () => this.resize());
     }
-
     resize() {
         this.w = window.innerWidth;
         this.h = window.innerHeight;
@@ -940,14 +994,6 @@ class Renderer {
         // レーダー（マップ）の描画
         this._drawRadar(player, entities);
 
-        // 後方カメラの描画
-        const rw = this.rearCanvas.width;
-        const rh = this.rearCanvas.height;
-        const rz = new Float32Array(rw);
-        const rearAngle = MathUtils.normalizeAngle(player.angle + Math.PI);
-        this._drawFloorAndCeiling(this.rearCtx, rw, rh);
-        this._castRays(player.x, player.y, rearAngle, this.rearCtx, rw, rh, rz);
-        this._drawSprites(player, entities, this.rearCtx, rw, rh, rz, rearAngle);
     }
 
     // --- (途中、_drawFloorAndCeiling / _castRays / _drawSprites はそのまま残してください) ---
@@ -2153,7 +2199,12 @@ class GameEngine {
         };
 
         // イベントバインディング
-        this.ui.btnStart.addEventListener('click', 
+        ['click', 'touchstart'].forEach(type => {
+            this.ui.btnStart.addEventListener(type, (e) => {
+                e.preventDefault();
+                this.bootSequence();
+            }, { passive: false });
+        });
         window.addEventListener('powerPelletEaten', () => this.triggerPowerMode());
 
         // 初期UIセット
