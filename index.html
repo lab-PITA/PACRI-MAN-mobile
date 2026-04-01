@@ -79,119 +79,92 @@
 }
 
 /* レーダー：コントロールエリアの背景として大きく表示 */
-#radar-container {
-    position: absolute;
-    width: 250px;
-    height: 250px;
-    opacity: 0.3; /* 操作の邪魔にならないよう薄く */
-    pointer-events: none;
-    z-index: 5;
-}
-#radar-canvas {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-}
-
-/* ジョイスティックの見た目 */
-#joystick-container {
-    position: absolute;
-    bottom: 30px;
-    left: 30px;
-    width: 110px;
-    height: 110px;
-    background: rgba(0, 255, 255, 0.1);
-    border: 2px solid rgba(0, 255, 255, 0.4);
-    border-radius: 50%;
-    z-index: 100;
-    pointer-events: auto;
-}
-#joystick-stick {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    width: 45px;
-    height: 45px;
-    background: #0ff;
-    border-radius: 50%;
-    transform: translate(-50%, -50%);
-    box-shadow: 0 0 15px #0ff;
-}
-
-/* 不要なパネル類を整理 */
-#rear-camera-container {
-    display: none !important;
-}
-
-/* スマホ用タイトル文字の調整（改行防止） */
-.title-glow {
-    font-size: clamp(28px, 8.5vw, 50px); 
-    color: #fff;
-    text-shadow: 0 0 10px #0ff, 0 0 20px #0ff;
-    margin-bottom: 10px;
-    text-align: center;
-    white-space: nowrap;
-}
-
-/* 説明文：スマホでも読みやすいサイズに自動調整 */
-.menu-text {
-    font-size: clamp(12px, 3.5vw, 16px);
-    color: #aaa;
-    text-align: center;
-    line-height: 1.6;
-    margin-bottom: 20px;
-    padding: 0 20px;
-}
-
-/* 下半分の右側に情報を寄せる */
-#status-container {
-    position: absolute;
-    top: 15px;
-    right: 15px;
-    min-width: 140px;
-    padding: 8px;
-    z-index: 50;
-}
-#right-status-container {
-    position: absolute;
-    bottom: 20px;
-    right: 20px;
-    z-index: 50;
-}
-.overlay-screen {
+/* レーダー：上部に移動し、範囲を限定 */
+        #radar-container {
             position: absolute;
-            top: 0;
+            top: -130px; /* 境界線のすぐ上に配置 */
+            right: 20px;
+            width: 130px;
+            height: 130px;
+            opacity: 0.9;
+            z-index: 100;
+            border: 2px solid #0ff;
+            background: rgba(0, 10, 20, 0.8);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        #radar-canvas { width: 100%; height: 100%; }
+
+        /* ジョイスティック：縦長の長方形（カプセル型） */
+        #joystick-container {
+            position: absolute;
+            bottom: 40px;
+            left: 40px;
+            width: 70px;
+            height: 160px;
+            background: rgba(0, 255, 255, 0.05);
+            border: 2px solid rgba(0, 255, 255, 0.2);
+            border-radius: 35px;
+            z-index: 100;
+        }
+        #joystick-stick {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 55px;
+            height: 55px;
+            background: #0ff;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 20px #0ff;
+        }
+
+        /* 回転ボタン */
+        .turn-btn {
+            position: absolute;
+            bottom: 70px;
+            width: 75px;
+            height: 75px;
+            background: rgba(0, 255, 255, 0.1);
+            border: 2px solid #0ff;
+            color: #0ff;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 28px;
+            z-index: 110;
+            pointer-events: auto;
+        }
+        #btn-turn-l { right: 130px; }
+        #btn-turn-r { right: 30px; }
+
+        /* HUD：残機を左、スコアを右に */
+        #status-container {
+            position: absolute;
+            top: 15px;
             left: 0;
             width: 100%;
-            height: 100%;
-            background-color: #000; /* 真っ黒にして後ろを隠す */
             display: flex;
-            flex-direction: column;
-            justify-content: center; /* 縦方向中央 */
-            align-items: center;     /* 横方向中央 */
-            z-index: 3000;           /* 全ての要素より手前に表示 */
-            transition: opacity 0.5s;
-            padding: 20px;
+            justify-content: space-between;
+            align-items: flex-start;
+            padding: 0 20px;
+            z-index: 50;
         }
+        .lives-container { display: flex; gap: 8px; }
+        .life-icon { width: 20px; height: 20px; background: #ff0; border-radius: 50%; clip-path: polygon(100% 74%, 44% 48%, 100% 21%, 100% 0, 0 0, 0 100%, 100% 100%); }
 
-        /* --- 追加：スタートボタンのデザイン --- */
-        .btn-start {
-            margin-top: 30px;
-            padding: 12px 35px;
-            font-size: clamp(18px, 5vw, 24px);
-            font-family: inherit;
-            color: #000;
-            background: #0ff;
-            border: none;
-            box-shadow: 0 0 15px #0ff;
-            cursor: pointer;
-            text-transform: uppercase;
-            letter-spacing: 2px;
+        /* タイトル画面 */
+        .overlay-screen {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: #000;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            z-index: 3000; transition: opacity 0.5s;
         }
-
-        .hidden {
-            display: none !important;
-        }
+        .title-glow { font-size: clamp(32px, 10vw, 54px); color: #fff; text-shadow: 0 0 20px #0ff; margin-bottom: 20px; }
+        .btn-start { padding: 15px 40px; font-family: inherit; background: #0ff; color: #000; border: none; font-size: 20px; cursor: pointer; box-shadow: 0 0 15px #0ff; }
+        .hidden { display: none !important; }
 </style>
 </head>
 <body>
@@ -210,30 +183,30 @@
     </div>
 
     <!-- 下半分：操作エリア -->
-    <div id="control-area">
+	<div id="control-area">
+        <!-- 上部HUD -->
+        <div id="status-container">
+            <div id="ui-lives" class="lives-container"></div>
+            <div style="text-align: right;">
+                <div style="font-size: 10px; opacity: 0.6;">SCORE</div>
+                <div id="ui-score" class="status-value-yellow" style="font-size: 26px; line-height: 1;">000000</div>
+                <div style="font-size: 10px; color: #0ff; margin-top: 4px;">LV <span id="ui-level">1</span> / <span id="ui-dots">000</span> DOTS</div>
+            </div>
+        </div>
+
+        <!-- 自分の周りだけ映すミニレーダー -->
         <div id="radar-container">
             <canvas id="radar-canvas"></canvas>
         </div>
 
+        <!-- 縦型スティック -->
         <div id="joystick-container">
             <div id="joystick-stick"></div>
         </div>
 
-        <!-- ステータスUI -->
-        <div id="status-container" class="neon-panel">
-            <div class="status-row">
-                <span class="status-label">SCORE</span>
-                <span id="ui-score" class="status-value-yellow" style="font-size: 22px;">000000</span>
-            </div>
-            <div class="status-row" style="font-size: 12px; margin-top: 5px;">
-                <span>LV <span id="ui-level" class="status-value-cyan">1</span></span>
-                <span style="margin-left: 10px;"><span id="ui-dots" class="status-value-cyan">000</span> DOTS</span>
-            </div>
-        </div>
-
-        <div id="right-status-container">
-            <div id="ui-lives" class="lives-container"></div>
-        </div>
+        <!-- 90度回転ボタン -->
+        <div id="btn-turn-l" class="turn-btn" onclick="return false;">◀</div>
+        <div id="btn-turn-r" class="turn-btn" onclick="return false;">▶</div>
     </div>
 
     <!-- スタート画面 -->
@@ -356,17 +329,18 @@ class MathUtils {
 // 3. INPUT MANAGER (キーボード操作と90度スナップ制御)
 // ----------------------------------------------------------------------------
 
+
 class InputMgr {
     constructor() {
         this.keys = {}; 
         this.stickY = 0; 
-        this.swipeDeltaX = 0; 
+        this.turnLeftTrigger = false;
+        this.turnRightTrigger = false;
         
         this.touchIdStick = null;
-        this.touchIdSwipe = null;
-        this.stickStartPos = { x: 0, y: 0 };
-        this.lastSwipeX = 0;
+        this.stickStartPos = { y: 0 };
 
+        // タッチイベントの登録
         window.addEventListener('touchstart', (e) => this._handleTouch(e), { passive: false });
         window.addEventListener('touchmove', (e) => this._handleTouch(e), { passive: false });
         window.addEventListener('touchend', (e) => this._handleTouch(e), { passive: false });
@@ -374,44 +348,47 @@ class InputMgr {
 
     _handleTouch(e) {
         if (e.cancelable) e.preventDefault();
+        const stickMax = 70; // 縦方向の最大移動量
 
-        const rect = document.getElementById('joystick-container').getBoundingClientRect();
-        const stickMax = 50;
-
+        // 指を離した時の処理
         if (e.type === 'touchend' || e.type === 'touchcancel') {
             for (let t of e.changedTouches) {
                 if (t.identifier === this.touchIdStick) {
                     this.touchIdStick = null;
                     this.stickY = 0;
                     document.getElementById('joystick-stick').style.transform = 'translate(-50%, -50%)';
-                } else if (t.identifier === this.touchIdSwipe) {
-                    this.touchIdSwipe = null;
-                    this.swipeDeltaX = 0;
                 }
             }
             return;
         }
 
+        const stickRect = document.getElementById('joystick-container').getBoundingClientRect();
+        
         for (let t of e.touches) {
-            const isInsideInitial = (t.clientX >= rect.left && t.clientX <= rect.right && t.clientY >= rect.top && t.clientY <= rect.bottom);
+            // 回転ボタンのタップ判定
+            if (e.type === 'touchstart') {
+                const el = document.elementFromPoint(t.clientX, t.clientY);
+                if (el) {
+                    if (el.id === 'btn-turn-l') { this.turnLeftTrigger = true; continue; }
+                    if (el.id === 'btn-turn-r') { this.turnRightTrigger = true; continue; }
+                }
+            }
+
+            // ジョイスティックの移動判定（縦のみ）
+            const isInsideStickArea = (t.clientX >= stickRect.left && t.clientX <= stickRect.right && t.clientY >= stickRect.top && t.clientY <= stickRect.bottom);
             
-            if (this.touchIdStick === null && isInsideInitial && e.type === 'touchstart') {
+            if (this.touchIdStick === null && isInsideStickArea && e.type === 'touchstart') {
                 this.touchIdStick = t.identifier;
-                this.stickStartPos = { x: t.clientX, y: t.clientY };
+                this.stickStartPos.y = t.clientY;
             } else if (t.identifier === this.touchIdStick) {
                 const dy = t.clientY - this.stickStartPos.y;
-                const dist = Math.min(stickMax, Math.abs(dy));
-                this.stickY = -(dy / stickMax);
-                const visualY = Math.sign(dy) * dist;
-                document.getElementById('joystick-stick').style.transform = `translate(-50%, calc(-50% + ${visualY}px))`;
-            } 
-            else if (this.touchIdSwipe === null && e.type === 'touchstart') {
-                this.touchIdSwipe = t.identifier;
-                this.lastSwipeX = t.clientX;
-            } else if (t.identifier === this.touchIdSwipe) {
-                const dx = t.clientX - this.lastSwipeX;
-                this.swipeDeltaX = dx * 0.005; 
-                this.lastSwipeX = t.clientX;
+                const dist = Math.max(-stickMax, Math.min(stickMax, dy));
+                
+                // ★速度の微調整: 0.65を掛けてプレイヤーが速すぎないように制限
+                this.stickY = -(dist / stickMax) * 0.65;
+                
+                // 見た目のスティックを縦にだけ動かす
+                document.getElementById('joystick-stick').style.transform = `translate(-50%, calc(-50% + ${dist}px))`;
             }
         }
     }
@@ -420,8 +397,70 @@ class InputMgr {
     isDown(code) { return !!this.keys[code]; }
     isJustPressed(code) { return !!this.keys[code]; }
 }
+```
 
+---
 
+### ステップ5：Rendererクラスの `_drawRadar` メソッド差し替え
+
+ファイルの**1238行目付近**にある `_drawRadar(player, entities) {` を探してください。
+
+**【削除する範囲：1238行目〜1289行目】**
+メソッドの開始から終わりの `}` まで、以下をすべて消してください。
+```javascript
+    _drawRadar(player, entities) {
+        const ctx = this.radarCtx;
+        const w = this.radarCanvas.width; // 180
+        const h = this.radarCanvas.height; // 180
+        const ts = GAME_CONFIG.TILE_SIZE;
+        ctx.clearRect(0, 0, w, h);
+        
+        // 縦横共通のスケールを使用
+        const scale = 15; 
+        const offX = (w / 2) - (player.x / ts) * scale;
+        const offY = (h / 2) - (player.y / ts) * scale;
+
+        // 壁の描画
+        ctx.fillStyle = 'rgba(0, 255, 255, 0.4)';
+        for (let y = 0; y < this.maze.height; y++) {
+            for (let x = 0; x < this.maze.width; x++) {
+                if (this.maze.grid[y][x] === 1) {
+                    const dx = offX + x * scale;
+                    const dy = offY + y * scale;
+                    // キャンバスの範囲内のみ描画
+                    if (dx > -scale && dx < w && dy > -scale && dy < h) {
+                        ctx.fillRect(dx, dy, scale + 0.5, scale + 0.5);
+                    }
+                }
+            }
+        }
+
+        // ゴーストの描画
+        entities.forEach(e => {
+            if (!e.active || !e.type.startsWith('GHOST')) return;
+            const gx = offX + (e.x / ts) * scale;
+            const gy = offY + (e.y / ts) * scale;
+            if (gx > 0 && gx < w && gy > 0 && gy < h) {
+                ctx.fillStyle = e.state === 'SCARED' ? '#00f' : '#f00';
+                ctx.beginPath(); 
+                ctx.arc(gx, gy, 4, 0, Math.PI * 2); 
+                ctx.fill();
+            }
+        });
+
+        // プレイヤーの描画 (中央に固定)
+        ctx.save();
+        ctx.translate(w / 2, h / 2);
+        ctx.rotate(player.angle);
+        ctx.fillStyle = '#0f0';
+        ctx.beginPath();
+        ctx.moveTo(8, 0); 
+        ctx.lineTo(-6, -5); 
+        ctx.lineTo(-6, 5);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+    }
 
 // ----------------------------------------------------------------------------
 // 4. AUDIO ENGINE (Web Audio API & MML Parser)
@@ -1048,60 +1087,49 @@ class Renderer {
     // --- (途中、_drawFloorAndCeiling / _castRays / _drawSprites はそのまま残してください) ---
 
     /** UI: プロキシミティ・レーダーの歪み修正版 (内部解像度に合わせる) */
-    _drawRadar(player, entities) {
+ _drawRadar(player, entities) {
         const ctx = this.radarCtx;
-        const w = this.radarCanvas.width; // 180
-        const h = this.radarCanvas.height; // 180
+        const w = this.radarCanvas.width;
+        const h = this.radarCanvas.height;
         const ts = GAME_CONFIG.TILE_SIZE;
         ctx.clearRect(0, 0, w, h);
         
-        // 縦横共通のスケールを使用
-        const scale = 15; 
+        const scale = 22; // 少し拡大して視認性アップ
         const offX = (w / 2) - (player.x / ts) * scale;
         const offY = (h / 2) - (player.y / ts) * scale;
 
-        // 壁の描画
-        ctx.fillStyle = 'rgba(0, 255, 255, 0.4)';
-        for (let y = 0; y < this.maze.height; y++) {
-            for (let x = 0; x < this.maze.width; x++) {
-                if (this.maze.grid[y][x] === 1) {
-                    const dx = offX + x * scale;
-                    const dy = offY + y * scale;
-                    // キャンバスの範囲内のみ描画
-                    if (dx > -scale && dx < w && dy > -scale && dy < h) {
-                        ctx.fillRect(dx, dy, scale + 0.5, scale + 0.5);
+        const px = Math.floor(player.x / ts);
+        const py = Math.floor(player.y / ts);
+        const viewRange = 5; // 周囲5マスだけ描画
+
+        ctx.fillStyle = 'rgba(0, 255, 255, 0.6)';
+        for (let y = py - viewRange; y <= py + viewRange; y++) {
+            for (let x = px - viewRange; x <= px + viewRange; x++) {
+                if (y >= 0 && y < this.maze.height && x >= 0 && x < this.maze.width) {
+                    if (this.maze.grid[y][x] === 1) {
+                        ctx.fillRect(offX + x * scale, offY + y * scale, scale - 1, scale - 1);
                     }
                 }
             }
         }
 
-        // ゴーストの描画
         entities.forEach(e => {
             if (!e.active || !e.type.startsWith('GHOST')) return;
             const gx = offX + (e.x / ts) * scale;
             const gy = offY + (e.y / ts) * scale;
             if (gx > 0 && gx < w && gy > 0 && gy < h) {
                 ctx.fillStyle = e.state === 'SCARED' ? '#00f' : '#f00';
-                ctx.beginPath(); 
-                ctx.arc(gx, gy, 4, 0, Math.PI * 2); 
-                ctx.fill();
+                ctx.beginPath(); ctx.arc(gx, gy, 5, 0, Math.PI * 2); ctx.fill();
             }
         });
 
-        // プレイヤーの描画 (中央に固定)
-        ctx.save();
-        ctx.translate(w / 2, h / 2);
-        ctx.rotate(player.angle);
+        ctx.save(); ctx.translate(w / 2, h / 2); ctx.rotate(player.angle);
         ctx.fillStyle = '#0f0';
-        ctx.beginPath();
-        ctx.moveTo(8, 0); 
-        ctx.lineTo(-6, -5); 
-        ctx.lineTo(-6, 5);
-        ctx.closePath();
-        ctx.fill();
+        ctx.beginPath(); ctx.moveTo(12, 0); ctx.lineTo(-8, -7); ctx.lineTo(-8, 7); ctx.closePath(); ctx.fill();
         ctx.restore();
     }
 }
+
     
 // ----------------------------------------------------------------------------
 // 9. MATH & GEOMETRY KERNEL (ステルスAI用のベクトル演算ライブラリ)
@@ -1432,13 +1460,21 @@ class Player {
     }
 
           _handleRotation(dt, inputMgr) {
-        if (inputMgr.swipeDeltaX !== 0) {
-            this.targetAngle += inputMgr.swipeDeltaX * 10;
-            inputMgr.swipeDeltaX = 0; 
+        // ボタン入力をチェックしてターゲット角度を90度ずつずらす
+        if (inputMgr.turnLeftTrigger) {
+            this.targetAngle -= Math.PI / 2;
+            inputMgr.turnLeftTrigger = false; // 消費
+            if(typeof audio !== 'undefined') audio.playTone(400, 'sine', 0.05, 0.1);
         }
+        if (inputMgr.turnRightTrigger) {
+            this.targetAngle += Math.PI / 2;
+            inputMgr.turnRightTrigger = false; // 消費
+            if(typeof audio !== 'undefined') audio.playTone(400, 'sine', 0.05, 0.1);
+        }
+
         const diff = this.targetAngle - this.angle;
         if (Math.abs(diff) > 0.01) {
-            this.angle += diff * 15 * dt; 
+            this.angle += diff * 12 * dt; // 旋回速度を少し抑えて酔い防止
         } else {
             this.angle = this.targetAngle;
             this.angle = MathUtils.normalizeAngle(this.angle);
