@@ -80,51 +80,54 @@
 
 /* レーダー：コントロールエリアの背景として大きく表示 */
 /* レーダー：上部に移動し、範囲を限定 */
+        /* レーダー：下のエリアの「中央」に配置 */
         #radar-container {
             position: absolute;
-            top: -130px; /* 境界線のすぐ上に配置 */
-            right: 20px;
-            width: 130px;
-            height: 130px;
-            opacity: 0.9;
-            z-index: 100;
+            top: 55%; /* 下エリアの中央付近 */
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 110px; /* ボタンと被らないよう少しコンパクトに */
+            height: 110px;
+            opacity: 1.0;
+            z-index: 10;
             border: 2px solid #0ff;
-            background: rgba(0, 10, 20, 0.8);
-            border-radius: 4px;
+            background: rgba(0, 10, 20, 0.9);
+            border-radius: 50%; /* 円形にするとメカっぽくて綺麗です */
             overflow: hidden;
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.3);
         }
         #radar-canvas { width: 100%; height: 100%; }
 
-        /* ジョイスティック：縦長の長方形（カプセル型） */
+        /* ジョイスティック：左端に配置 */
         #joystick-container {
             position: absolute;
-            bottom: 40px;
-            left: 40px;
-            width: 70px;
-            height: 160px;
+            bottom: 30px;
+            left: 25px;
+            width: 60px;
+            height: 150px;
             background: rgba(0, 255, 255, 0.05);
             border: 2px solid rgba(0, 255, 255, 0.2);
-            border-radius: 35px;
+            border-radius: 30px;
             z-index: 100;
         }
         #joystick-stick {
             position: absolute;
             top: 50%;
             left: 50%;
-            width: 55px;
-            height: 55px;
+            width: 50px;
+            height: 50px;
             background: #0ff;
             border-radius: 50%;
             transform: translate(-50%, -50%);
-            box-shadow: 0 0 20px #0ff;
+            box-shadow: 0 0 15px #0ff;
         }
 
-        /* 回転ボタン */
+        /* 回転ボタン：右側に寄せて配置 */
         .turn-btn {
             position: absolute;
-            bottom: 70px;
-            width: 75px;
-            height: 75px;
+            bottom: 40px; /* マップの下端に合わせる */
+            width: 70px;
+            height: 70px;
             background: rgba(0, 255, 255, 0.1);
             border: 2px solid #0ff;
             color: #0ff;
@@ -132,13 +135,12 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            font-size: 28px;
-            z-index: 110;
+            font-size: 24px;
+            z-index: 100;
             pointer-events: auto;
         }
-        #btn-turn-l { right: 130px; }
-        #btn-turn-r { right: 30px; }
-
+        #btn-turn-l { right: 105px; } /* 左回転ボタン */
+        #btn-turn-r { right: 25px; }  /* 右回転ボタン */
         /* HUD：残機を左、スコアを右に */
         #status-container {
             position: absolute;
@@ -246,12 +248,12 @@ const GAME_CONFIG = {
     MAX_DEPTH: 14,          // 描画距離（これ以上遠くは暗闇）
     
     // プレイヤー設定
-    PLAYER_SPEED: 180,      // 移動速度 (ピクセル/秒)
+    PLAYER_SPEED: 2000,      // 移動速度 (ピクセル/秒)
     TURN_SPEED: Math.PI * 2,// 旋回速度 (90度スナップ時のアニメーション用)
     
     // ゴースト設定
     GHOST_SPEED_NORMAL: 80,  // ゴーストの基本速度 (プレイヤーより少し遅い)
-    GHOST_SPEED_CHASE: 120,   // 発見時の追跡速度
+    GHOST_SPEED_CHASE: 100,   // 発見時の追跡速度
     GHOST_SPEED_SCARED: 80,   // イジケ状態の速度
     GHOST_SCARED_TIME: 8000,  // イジケ状態の持続時間(ms)
     
