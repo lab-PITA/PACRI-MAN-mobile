@@ -900,22 +900,29 @@ class Renderer {
         window.addEventListener('resize', () => this.resize());
     }
 
+    /** 画面リサイズ時の処理：投影距離を高さ基準に固定して横伸びを防止 */
     resize() {
-        this.w = window.innerWidth;
-        this.h = window.innerHeight;
+        const area = document.getElementById('view-area');
+        if (!area) return;
+        this.w = area.clientWidth;
+        this.h = area.clientHeight;
         this.mainCanvas.width = this.w;
         this.mainCanvas.height = this.h;
         this.zBuffer = new Float32Array(this.w);
+        
+        this.radarCanvas.width = 120;
+        this.radarCanvas.height = 120;
+
+        // ★横長バグの修正：投影距離を「画面の高さ」に基づいて計算
+        this.projDist = (this.h * 0.75) / Math.tan(GAME_CONFIG.FOV / 2);
     }
 
     render(player, entities) {
-        // 前方描画
+        // 前方描画のみ実行（HTMLに無い rearCanvas はエラーの元なので除外して正解です）
         this._drawFloorAndCeiling(this.ctx, this.w, this.h);
         this._castRays(player.x, player.y, player.angle, this.ctx, this.w, this.h, this.zBuffer);
         this._drawSprites(player, entities, this.ctx, this.w, this.h, this.zBuffer, player.angle);
         this._drawRadar(player, entities);
-
-
     }
 
     _drawFloorAndCeiling(ctx, w, h) {
@@ -930,7 +937,7 @@ class Renderer {
 
     _castRays(px, py, pa, ctx, cw, ch, zBuf) {
         const ts = GAME_CONFIG.TILE_SIZE;
-        // ★修正：再計算せず、this.projDist を使用する
+        // ★修正：resizeで計算した正しい比率を使用
         const projDist = this.projDist;
 
         for (let i = 0; i < cw; i++) {
@@ -956,14 +963,15 @@ class Renderer {
             
             if(pdist < GAME_CONFIG.MAX_DEPTH * ts) {
                 ctx.fillStyle = `rgba(0, 255, 255, ${b * 0.8})`;
-                ctx.fillRect(i, ch/2 - lh/2, 1, 2); ctx.fillRect(i, ch/2 + lh/2 - 2, 1, 2);
+                ctx.fillRect(i, ch/2 - lh/2, 1, 2); 
+                ctx.fillRect(i, ch/2 + lh/2 - 2, 1, 2);
             }
         }
     }
 
     _drawSprites(player, entities, ctx, cw, ch, zBuf, viewAngle) {
         const ts = GAME_CONFIG.TILE_SIZE;
-        // ★修正：this.projDist を使用
+        // ★修正：ここも正しい比率を使用
         const projDist = this.projDist;
 
         const sprites = entities.filter(e => e.active).map(e => {
