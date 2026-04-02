@@ -1462,21 +1462,50 @@ class Player {
         this.isMoving = false;
         this.makingNoise = false;
         let moveStep = 0;
-        if (Math.abs(inputMgr.stickY) > 0.1) {
-            moveStep = inputMgr.stickY * this.speed * dt;
+
+        // キー入力判定
+        if (inputMgr.isDown('KeyW') || inputMgr.isDown('ArrowUp')) {
+            moveStep = this.speed * dt;
             this.isMoving = true;
             this.makingNoise = true; 
+        } else if (inputMgr.isDown('KeyS') || inputMgr.isDown('ArrowDown')) {
+            moveStep = -this.speed * 0.7 * dt; 
+            this.isMoving = true;
+            this.makingNoise = true;
         }
+
         if (moveStep !== 0) {
-            const nx = this.x + Math.cos(this.targetAngle) * moveStep;
-            const ny = this.y + Math.sin(this.targetAngle) * moveStep;
-            const radius = GAME_CONFIG.TILE_SIZE * 0.2;
             const ts = GAME_CONFIG.TILE_SIZE;
-            if (!this.maze.isWall(Math.floor((nx + Math.sign(Math.cos(this.targetAngle)) * radius) / ts), Math.floor(this.y / ts))) {
+            const radius = ts * 0.35; // 壁判定の厚み
+            const moveAngle = this.targetAngle;
+
+            const nx = this.x + Math.cos(moveAngle) * moveStep;
+            const ny = this.y + Math.sin(moveAngle) * moveStep;
+
+            // ★解決策：移動方向（向き×進む方向）を考慮した符号計算
+            // これにより、後退時（moveStepがマイナス）も後ろ側の壁を正しく判定します
+            const checkDirX = Math.sign(Math.cos(moveAngle) * moveStep);
+            const checkDirY = Math.sign(Math.sin(moveAngle) * moveStep);
+
+            if (!this.maze.isWall(Math.floor((nx + checkDirX * radius) / ts), Math.floor(this.y / ts))) {
                 this.x = nx;
             }
-            if (!this.maze.isWall(Math.floor(this.x / ts), Math.floor((ny + Math.sign(Math.sin(this.targetAngle)) * radius) / ts))) {
+            if (!this.maze.isWall(Math.floor(this.x / ts), Math.floor((ny + checkDirY * radius) / ts))) {
                 this.y = ny;
+            }
+
+            // ★追加：通路センターへの吸い込み (Snapping)
+            // ゴーストが通るルートから外れないように補正します
+            const centerX = Math.floor(this.x / ts) * ts + ts / 2;
+            const centerY = Math.floor(this.y / ts) * ts + ts / 2;
+            const snapSpeed = 0.15; 
+
+            if (Math.abs(Math.cos(moveAngle)) > 0.7) { 
+                // 左右移動中は、上下位置を中央へ
+                this.y += (centerY - this.y) * snapSpeed;
+            } else if (Math.abs(Math.sin(moveAngle)) > 0.7) {
+                // 上下移動中は、左右位置を中央へ
+                this.x += (centerX - this.x) * snapSpeed;
             }
         }
     }
@@ -2451,7 +2480,7 @@ class GameEngine {
 
     /** 当たり判定 (プレイヤー vs ゴースト) */
     checkCollisions() {
-        const hitRadius = GAME_CONFIG.TILE_SIZE * 0.4;
+        const hitRadius = GAME_CONFIG.TILE_SIZE * 0.5;
         
         for (let i = 0; i < this.ghosts.length; i++) {
             const ghost = this.ghosts[i];
