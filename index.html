@@ -969,10 +969,11 @@ class Renderer {
         }
     }
 
+    /** 8. RENDERER内の描画メソッドを完全に修復 (構文エラー解消版) */
     _drawSprites(player, entities, ctx, cw, ch, zBuf, viewAngle) {
         const ts = GAME_CONFIG.TILE_SIZE;
-        // ★修正：ここも正しい比率を使用
-        const projDist = this.projDist;
+        // 横長バグを直すための正しい投影距離
+        const projDist = (ch * 0.75) / Math.tan(GAME_CONFIG.FOV / 2);
 
         const sprites = entities.filter(e => e.active).map(e => {
             const dx = e.x - player.x, dy = e.y - player.y;
@@ -988,28 +989,24 @@ class Renderer {
             const cosA = Math.cos(s.a); if (cosA <= 0) continue;
             const dist = s.dist * cosA;
             const sx = (cw / 2) + Math.tan(s.a) * projDist;
+            
+            // 視界外または壁の向こう側ならスキップ
             if (sx < 0 || sx >= cw || dist >= zBuf[Math.floor(sx)]) continue;
+            
             const size = (ts / dist) * projDist;
-            const ds = size * (s.e.type === 'DOT' ? 0.2 : s.e.type === 'POWER' ? 0.4 : 0.8);
+            const scale = s.e.type === 'DOT' ? 0.2 : s.e.type === 'POWER' ? 0.4 : 0.8;
+            const ds = size * scale;
             const b = Math.max(0, 1 - dist / (GAME_CONFIG.MAX_DEPTH * ts));
             ctx.globalAlpha = b * 0.8;
             const cy = ch / 2;
             
             if (s.e.type === 'DOT' || s.e.type === 'POWER') {
+                // ドット：床に置く
                 const dotY = cy + (size * 0.35);
                 ctx.fillStyle = s.e.type === 'POWER' ? GAME_CONFIG.COLORS.POWER_PELLET : GAME_CONFIG.COLORS.DOT;
                 ctx.beginPath(); ctx.arc(sx, dotY, ds/2, 0, Math.PI*2); ctx.fill();
             } else if (s.e.type.startsWith('GHOST')) {
-                ctx.fillStyle = s.e.state === 'SCARED' ? '#00f' : s.e.color;
-                ctx.beginPath(); ctx.arc(sx, cy - ds/4, ds/2, Math.PI, 0); ctx.lineTo(sx + ds/2, cy + ds/2);
-                for(let i=0; i<=3; i++) ctx.lineTo(sx + ds/2 - (ds/3)*i, cy + ds/2 - (i%2===0 ? 0 : ds/4));
-                ctx.lineTo(sx - ds/2, cy + ds/2); ctx.fill();
-            }
-            ctx.globalAlpha = 1.0;
-        }
-    
-            else if (s.e.type.startsWith('GHOST')) {
-                // ゴーストのディテール復元
+                // ゴースト：PC版の高品質描画を維持
                 ctx.fillStyle = s.e.state === 'SCARED' ? '#00f' : s.e.color;
                 ctx.beginPath();
                 ctx.arc(sx, cy - ds/4, ds/2, Math.PI, 0);
@@ -1020,7 +1017,9 @@ class Renderer {
                     ctx.lineTo(wx, wy);
                 }
                 ctx.lineTo(sx - ds/2, cy + ds/2); ctx.fill();
+                
                 if (s.e.state !== 'SCARED') {
+                    // 目玉の描画
                     ctx.fillStyle = '#fff';
                     ctx.beginPath(); ctx.arc(sx - ds/5, cy - ds/4, ds/6, 0, Math.PI*2); ctx.fill();
                     ctx.beginPath(); ctx.arc(sx + ds/5, cy - ds/4, ds/6, 0, Math.PI*2); ctx.fill();
