@@ -930,7 +930,9 @@ class Renderer {
 
     _castRays(px, py, pa, ctx, cw, ch, zBuf) {
         const ts = GAME_CONFIG.TILE_SIZE;
-        const projDist = (cw / 2) / Math.tan(GAME_CONFIG.FOV / 2);
+        // ★修正：再計算せず、this.projDist を使用する
+        const projDist = this.projDist;
+
         for (let i = 0; i < cw; i++) {
             const cameraX = 2 * i / cw - 1;
             const rayDirX = Math.cos(pa) + Math.cos(pa + Math.PI/2) * Math.tan(GAME_CONFIG.FOV/2) * cameraX;
@@ -951,6 +953,7 @@ class Renderer {
             const b = Math.max(0, 1 - pdist / (GAME_CONFIG.MAX_DEPTH * ts));
             ctx.fillStyle = side === 1 ? `rgb(0,${20*b},${30*b})` : `rgb(0,${30*b},${45*b})`;
             ctx.fillRect(i, ch/2 - lh/2, 1, lh);
+            
             if(pdist < GAME_CONFIG.MAX_DEPTH * ts) {
                 ctx.fillStyle = `rgba(0, 255, 255, ${b * 0.8})`;
                 ctx.fillRect(i, ch/2 - lh/2, 1, 2); ctx.fillRect(i, ch/2 + lh/2 - 2, 1, 2);
@@ -960,7 +963,9 @@ class Renderer {
 
     _drawSprites(player, entities, ctx, cw, ch, zBuf, viewAngle) {
         const ts = GAME_CONFIG.TILE_SIZE;
-        const projDist = (cw / 2) / Math.tan(GAME_CONFIG.FOV / 2);
+        // ★修正：this.projDist を使用
+        const projDist = this.projDist;
+
         const sprites = entities.filter(e => e.active).map(e => {
             const dx = e.x - player.x, dy = e.y - player.y;
             const dist = Math.sqrt(dx * dx + dy * dy);
@@ -968,25 +973,33 @@ class Renderer {
             while (a < -Math.PI) a += Math.PI * 2; while (a >= Math.PI) a -= Math.PI * 2;
             return { e, dist, a };
         }).filter(s => s.dist < GAME_CONFIG.MAX_DEPTH * ts && Math.abs(s.a) < GAME_CONFIG.FOV);
+        
         sprites.sort((a, b) => b.dist - a.dist);
+        
         for (const s of sprites) {
             const cosA = Math.cos(s.a); if (cosA <= 0) continue;
             const dist = s.dist * cosA;
             const sx = (cw / 2) + Math.tan(s.a) * projDist;
             if (sx < 0 || sx >= cw || dist >= zBuf[Math.floor(sx)]) continue;
             const size = (ts / dist) * projDist;
-            const scale = s.e.type === 'DOT' ? 0.2 : s.e.type === 'POWER' ? 0.4 : 0.8;
-            const ds = size * scale;
+            const ds = size * (s.e.type === 'DOT' ? 0.2 : s.e.type === 'POWER' ? 0.4 : 0.8);
             const b = Math.max(0, 1 - dist / (GAME_CONFIG.MAX_DEPTH * ts));
-            ctx.globalAlpha = b* 0.8;
+            ctx.globalAlpha = b * 0.8;
             const cy = ch / 2;
+            
             if (s.e.type === 'DOT' || s.e.type === 'POWER') {
-    const dotY = cy + (size * 0.35); // ★ 0.35を大きくするともっと床に近づきます
-    ctx.fillStyle = s.e.type === 'POWER' ? GAME_CONFIG.COLORS.POWER_PELLET : GAME_CONFIG.COLORS.DOT;
-    ctx.beginPath(); 
-    ctx.arc(sx, dotY, ds/2, 0, Math.PI*2); // ★ ここを cy から dotY に変える
-    ctx.fill();
-}
+                const dotY = cy + (size * 0.35);
+                ctx.fillStyle = s.e.type === 'POWER' ? GAME_CONFIG.COLORS.POWER_PELLET : GAME_CONFIG.COLORS.DOT;
+                ctx.beginPath(); ctx.arc(sx, dotY, ds/2, 0, Math.PI*2); ctx.fill();
+            } else if (s.e.type.startsWith('GHOST')) {
+                ctx.fillStyle = s.e.state === 'SCARED' ? '#00f' : s.e.color;
+                ctx.beginPath(); ctx.arc(sx, cy - ds/4, ds/2, Math.PI, 0); ctx.lineTo(sx + ds/2, cy + ds/2);
+                for(let i=0; i<=3; i++) ctx.lineTo(sx + ds/2 - (ds/3)*i, cy + ds/2 - (i%2===0 ? 0 : ds/4));
+                ctx.lineTo(sx - ds/2, cy + ds/2); ctx.fill();
+            }
+            ctx.globalAlpha = 1.0;
+        }
+    }
             else if (s.e.type.startsWith('GHOST')) {
                 // ゴーストのディテール復元
                 ctx.fillStyle = s.e.state === 'SCARED' ? '#00f' : s.e.color;
@@ -1015,20 +1028,22 @@ class Renderer {
         }
     }
 /** 画面リサイズ時の処理：各キャンバスの解像度を決定する */
-    resize() {
-        this.w = window.innerWidth;
-        this.h = window.innerHeight;
+resize() {
+        const area = document.getElementById('view-area');
+        if (!area) return;
+        this.w = area.clientWidth;
+        this.h = area.clientHeight;
         this.mainCanvas.width = this.w;
         this.mainCanvas.height = this.h;
         this.zBuffer = new Float32Array(this.w);
         
-        // ★マップ（レーダー）を 180x180 の正方形に固定
-        this.radarCanvas.width = 180;
-        this.radarCanvas.height = 180;
-        
-        
-    }
+        this.radarCanvas.width = 120;
+        this.radarCanvas.height = 120;
 
+        // ★修正：投影距離を「画面の高さ」に基づいて計算するように変更
+        // これにより、縦長画面でも廊下やドットが横に潰れなくなります
+        this.projDist = (this.h / 1.5) / Math.tan(GAME_CONFIG.FOV / 2);
+    }
     /** 描画のメイン処理 */
     render(player, entities) {
         // 前方描画
@@ -1458,20 +1473,17 @@ class Player {
         }
     }
 
-    _handleMovement(dt, inputMgr) {
+_handleMovement(dt, inputMgr) {
         this.isMoving = false;
         this.makingNoise = false;
         let moveStep = 0;
 
-        // キー入力判定
-        if (inputMgr.isDown('KeyW') || inputMgr.isDown('ArrowUp')) {
-            moveStep = this.speed * dt;
+        // ★スマホ用：ジョイスティックの入力(stickY)を移動量に変換
+        // 遊び（0.05）を作って、指を離した時に勝手に動くのを防ぎます
+        if (inputMgr.stickY && Math.abs(inputMgr.stickY) > 0.05) {
+            moveStep = inputMgr.stickY * this.speed * dt;
             this.isMoving = true;
             this.makingNoise = true; 
-        } else if (inputMgr.isDown('KeyS') || inputMgr.isDown('ArrowDown')) {
-            moveStep = -this.speed * 0.7 * dt; 
-            this.isMoving = true;
-            this.makingNoise = true;
         }
 
         if (moveStep !== 0) {
@@ -1482,8 +1494,8 @@ class Player {
             const nx = this.x + Math.cos(moveAngle) * moveStep;
             const ny = this.y + Math.sin(moveAngle) * moveStep;
 
-            // ★解決策：移動方向（向き×進む方向）を考慮した符号計算
-            // これにより、後退時（moveStepがマイナス）も後ろ側の壁を正しく判定します
+            // 移動方向（向き×進む方向）を考慮した符号計算
+            // 前進でも後退でも、進行方向の壁を正しくチェックします
             const checkDirX = Math.sign(Math.cos(moveAngle) * moveStep);
             const checkDirY = Math.sign(Math.sin(moveAngle) * moveStep);
 
@@ -1494,17 +1506,16 @@ class Player {
                 this.y = ny;
             }
 
-            // ★追加：通路センターへの吸い込み (Snapping)
-            // ゴーストが通るルートから外れないように補正します
+            // 通路センターへの吸い込み (Snapping)
             const centerX = Math.floor(this.x / ts) * ts + ts / 2;
             const centerY = Math.floor(this.y / ts) * ts + ts / 2;
             const snapSpeed = 0.15; 
 
             if (Math.abs(Math.cos(moveAngle)) > 0.7) { 
-                // 左右移動中は、上下位置を中央へ
+                // 左右移動中は、上下の位置を中央に寄せる
                 this.y += (centerY - this.y) * snapSpeed;
             } else if (Math.abs(Math.sin(moveAngle)) > 0.7) {
-                // 上下移動中は、左右位置を中央へ
+                // 上下移動中は、左右の位置を中央に寄せる
                 this.x += (centerX - this.x) * snapSpeed;
             }
         }
