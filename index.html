@@ -286,7 +286,7 @@ const GAME_CONFIG = {
     TURN_SPEED: Math.PI * 2,// 旋回速度 (90度スナップ時のアニメーション用)
     
     // ゴースト設定
-    GHOST_SPEED_NORMAL: 80,  // ゴーストの基本速度 (プレイヤーより少し遅い)
+    GHOST_SPEED_NORMAL: 100,  // ゴーストの基本速度 (プレイヤーより少し遅い)
     GHOST_SPEED_CHASE: 120,   // 発見時の追跡速度
     GHOST_SPEED_SCARED: 80,   // イジケ状態の速度
     GHOST_SCARED_TIME: 8000,  // イジケ状態の持続時間(ms)
@@ -421,7 +421,7 @@ class InputMgr {
                 const dist = Math.max(-stickMax, Math.min(stickMax, dy));
                 
                 // ★速度の微調整: 0.65を掛けてプレイヤーが速すぎないように制限
-                this.stickY = -(dist / stickMax) * 1.03;
+                this.stickY = -(dist / stickMax) * 1;
                 
                 // 見た目のスティックを縦にだけ動かす
                 document.getElementById('joystick-stick').style.transform = `translate(-50%, calc(-50% + ${dist}px))`;
@@ -1330,7 +1330,13 @@ class FloatingUIManager {
         this.container.style.height = '100%';
         this.container.style.pointerEvents = 'none';
         this.container.style.zIndex = '30';
-        document.getElementById('game-container').appendChild(this.container);
+        
+        // ★修正：game-container ではなく view-area に追加する
+        // これで3Dキャンバスと座標が完全に一致します
+        const viewArea = document.getElementById('view-area');
+        if (viewArea) {
+            viewArea.appendChild(this.container);
+        }
         
         this.markers = new Map(); 
     }
@@ -1609,15 +1615,36 @@ class GhostBase {
 
     update(dt) {
         if (!this.active) return;
+        const dx = this.player.x - this.x;
+        const dy = this.player.y - this.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        // --- 状態判定の修正 ---
+        if (this.state !== 'SCARED' && this.state !== 'EATEN') {
+            if (dist < 350) {
+                this.state = 'CHASE'; // 「！」が出る
+            } else if (this.state === 'CHASE') {
+                this.state = 'INVESTIGATE'; // 見失ったら「？」にする
+                this.investigateTimer = 3.0; // 3秒間だけ出す
+            }
+        }
         
-        this.gridX = Math.floor(this.x / GAME_CONFIG.TILE_SIZE);
-        this.gridY = Math.floor(this.y / GAME_CONFIG.TILE_SIZE);
+        if (this.state === 'INVESTIGATE') {
+            this.investigateTimer -= dt;
+            if (this.investigateTimer <= 0) this.state = 'PATROL';
+        }
 
-        this._checkSenses();
-        this._updateState(dt);
-        this._moveAlongPath(dt);
+        // スピード決定
+        const baseS = this.state === 'SCARED' ? 80 : (this.state === 'CHASE' ? 120 : 80);
+        const s = baseS * (this.speedMult || 1.0);
+        
+        const a = Math.atan2(dy, dx) * (this.state === 'SCARED' ? -1 : 1);
+        const nx = this.x + Math.cos(a) * s * dt;
+        const ny = this.y + Math.sin(a) * s * dt;
+
+        if (!this.maze.isWall(Math.floor(nx / 64), Math.floor(ny / 64))) this.x = nx;
+        if (!this.maze.isWall(Math.floor(this.x / 64), Math.floor(ny / 64))) this.y = ny;
     }
-
     // --- センサー（視覚と聴覚）の処理 ---
 /** センサーと自主的な判断ロジック */
     _checkSenses() {
