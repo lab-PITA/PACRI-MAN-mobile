@@ -1061,14 +1061,7 @@ resize() {
         // レーダー（マップ）の描画
         this._drawRadar(player, entities);
 
-        // 後方カメラの描画
-        const rw = this.rearCanvas.width;
-        const rh = this.rearCanvas.height;
-        const rz = new Float32Array(rw);
-        const rearAngle = MathUtils.normalizeAngle(player.angle + Math.PI);
-        this._drawFloorAndCeiling(this.rearCtx, rw, rh);
-        this._castRays(player.x, player.y, rearAngle, this.rearCtx, rw, rh, rz);
-        this._drawSprites(player, entities, this.rearCtx, rw, rh, rz, rearAngle);
+        
     }
 
     // --- (途中、_drawFloorAndCeiling / _castRays / _drawSprites はそのまま残してください) ---
