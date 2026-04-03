@@ -681,12 +681,13 @@ class MazeEngine {
     }
 
     /** 完全な迷路を生成し、アイテムを配置するプロセスを実行 */
-    buildLevel() {
+    buildLevel(level) {
         this._initGrid();
         this._digMaze(1, 1);
         this._ensureLoops();
         this._buildGhostHouse();
-        this._placeItems();
+        // レベルを渡して配置するように変更
+        this._placeItems(level);
     }
 
     /** グリッドを壁(1)で初期化 */
@@ -840,41 +841,76 @@ class MazeEngine {
     }
 
     /** ドットとパワーエサを通路に配置する */
-    _placeItems() {
+    _placeItems(level) {
         this.items = [];
         this.totalDots = 0;
-        const powerPelletSpots = [
-            {x: 1, y: 1},
-            {x: this.width - 2, y: 1},
-            {x: 1, y: this.height - 2},
-            {x: this.width - 2, y: this.height - 2}
-        ];
+        const specialSpots = []; // 特殊アイテムを置いた場所を記録
 
-        for (let y = 1; y < this.height - 1; y++) {
-            for (let x = 1; x < this.width - 1; x++) {
-                if (Math.abs(x - this.ghostHouse.x) <= 2 && Math.abs(y - this.ghostHouse.y) <= 2) continue;
-                if (this.grid[y][x] === 0) {
-                    if(MathUtils.distance(x, y, this.spawnPoint.x, this.spawnPoint.y) < 2) continue;
-                    let isPower = false;
-                    for(const spot of powerPelletSpots) {
-                        if(Math.abs(x - spot.x) <= 1 && Math.abs(y - spot.y) <= 1) {
-                            isPower = true;
-                            powerPelletSpots.splice(powerPelletSpots.indexOf(spot), 1);
-                            break;
-                        }
+        // 1. パワーエサの基本位置を予約
+        const powerPelletSpots = [
+            {x: 1, y: 1}, {x: this.width - 2, y: 1},
+            {x: 1, y: this.height - 2}, {x: this.width - 2, y: this.height - 2}
+        ];
+        powerPelletSpots.forEach(s => specialSpots.push({x: s.x, y: s.y, type: 'POWER'}));
+
+        // 2. レベルに応じた特殊ドットの個数設定
+        let jammingCount = 0;
+        let signalCount = 0;
+        if (level === 3) jammingCount = 2;
+        if (level === 4) { jammingCount = 3; signalCount = 1; }
+        if (level >= 5) { jammingCount = 4; signalCount = 2; }
+
+        // 3. 特殊ドットを距離を保ちながら配置するヘルパー関数
+        const placeSpecial = (type, count) => {
+            let placed = 0;
+            let attempts = 0;
+            while (placed < count && attempts < 200) {
+                attempts++;
+                const rx = MathUtils.randomInt(1, this.width - 2);
+                const ry = MathUtils.randomInt(1, this.height - 2);
+                
+                // 通路であり、ハウス付近でなく、他の特殊アイテムから3マス以上離れていること
+                if (this.grid[ry][rx] === 0 && !this._isNearHouse(rx, ry)) {
+                    const tooClose = specialSpots.some(s => MathUtils.distance(rx, ry, s.x, s.y) < 4);
+                    if (!tooClose) {
+                        specialSpots.push({x: rx, y: ry, type: type});
+                        placed++;
                     }
-                    const type = isPower ? 'POWER' : 'DOT';
-                    this.items.push({
-                        id: `item_${x}_${y}`,
-                        gridX: x, gridY: y, type: type, active: true,
-                        x: x * GAME_CONFIG.TILE_SIZE + GAME_CONFIG.TILE_SIZE / 2,
-                        y: y * GAME_CONFIG.TILE_SIZE + GAME_CONFIG.TILE_SIZE / 2,
-                        z: isPower ? GAME_CONFIG.TILE_SIZE * 0.4 : GAME_CONFIG.TILE_SIZE * 0.6
-                    });
-                    this.totalDots++;
                 }
             }
+        };
+
+        placeSpecial('JAMMING', jammingCount);
+        placeSpecial('SIGNAL', signalCount);
+
+        // 4. 全てのマスを走査してドットを設置
+        for (let y = 1; y < this.height - 1; y++) {
+            for (let x = 1; x < this.width - 1; x++) {
+                // ハウス付近は除外
+                if (this._isNearHouse(x, y)) continue;
+                if (this.grid[y][x] !== 0) continue;
+                // スタート地点も除外
+                if (MathUtils.distance(x, y, this.spawnPoint.x, this.spawnPoint.y) < 2) continue;
+
+                // 予約された特殊地点かチェック
+                const special = specialSpots.find(s => s.x === x && s.y === y);
+                const type = special ? special.type : 'DOT';
+
+                this.items.push({
+                    id: `item_${x}_${y}`,
+                    gridX: x, gridY: y, type: type, active: true,
+                    x: x * GAME_CONFIG.TILE_SIZE + GAME_CONFIG.TILE_SIZE / 2,
+                    y: y * GAME_CONFIG.TILE_SIZE + GAME_CONFIG.TILE_SIZE / 2,
+                    z: (type === 'DOT') ? GAME_CONFIG.TILE_SIZE * 0.6 : GAME_CONFIG.TILE_SIZE * 0.4
+                });
+                this.totalDots++;
+            }
         }
+    }
+
+    // ハウス付近判定のヘルパーメソッド（_placeItemsの直後に追加してください）
+    _isNearHouse(x, y) {
+        return Math.abs(x - this.ghostHouse.x) <= 2 && Math.abs(y - this.ghostHouse.y) <= 2;
     }
 
   
@@ -998,12 +1034,34 @@ class Renderer {
             ctx.globalAlpha = b * 0.8;
             const cy = ch / 2;
             
-            if (s.e.type === 'DOT' || s.e.type === 'POWER') {
-                // ドット：床に置く
+            if (s.e.type === 'DOT' || s.e.type === 'POWER' || s.e.type === 'JAMMING' || s.e.type === 'SIGNAL') {
+                // ドット系の描画（床に置く）
                 const dotY = cy + (size * 0.35);
-                ctx.fillStyle = s.e.type === 'POWER' ? GAME_CONFIG.COLORS.POWER_PELLET : GAME_CONFIG.COLORS.DOT;
-                ctx.beginPath(); ctx.arc(sx, dotY, ds/2, 0, Math.PI*2); ctx.fill();
+                
+                // タイプに応じて色を決定
+                if (s.e.type === 'POWER') {
+                    ctx.fillStyle = GAME_CONFIG.COLORS.POWER_PELLET; // 薄緑
+                } else if (s.e.type === 'JAMMING') {
+                    ctx.fillStyle = '#0000ff'; // ジャミング：鮮やかな青
+                } else if (s.e.type === 'SIGNAL') {
+                    ctx.fillStyle = '#ff0000'; // 位置バレ：警告の赤
+                } else {
+                    ctx.fillStyle = GAME_CONFIG.COLORS.DOT; // 通常：黄色
+                }
+
+                ctx.beginPath(); 
+                ctx.arc(sx, dotY, ds/2, 0, Math.PI * 2); 
+                ctx.fill();
+                
+                // 特殊ドットには少し光らせる演出（お好みで）
+                if (s.e.type !== 'DOT') {
+                    ctx.shadowBlur = 10;
+                    ctx.shadowColor = ctx.fillStyle;
+                    ctx.stroke();
+                    ctx.shadowBlur = 0;
+                }
             } else if (s.e.type.startsWith('GHOST')) {
+
                 // ゴースト：PC版の高品質描画を維持
                 ctx.fillStyle = s.e.state === 'SCARED' ? '#00f' : s.e.color;
                 ctx.beginPath();
@@ -1525,6 +1583,20 @@ _handleMovement(dt, inputMgr) {
                     audio.playTone(1000, 'sine', 0.5, 1.0); 
                     window.dispatchEvent(new CustomEvent('powerPelletEaten'));
                 }
+                // ★追加：ジャミングドット（青）を食べた時
+                else if (item.type === 'JAMMING') {
+                    this.score += 100; // 少し高めのスコア
+                    this.dotsEaten++;
+                    audio.playTone(600, 'sawtooth', 0.3, 0.5); // 少し濁った音
+                    window.dispatchEvent(new CustomEvent('jammingItemEaten'));
+                }
+                // ★追加：位置バレドット（赤）を食べた時
+                else if (item.type === 'SIGNAL') {
+                    this.score += 200; // リスクが高い分、高スコア
+                    this.dotsEaten++;
+                    audio.playTone(300, 'square', 0.5, 0.8); // 警告のような低い音
+                    window.dispatchEvent(new CustomEvent('signalItemEaten'));
+                }
             }
         }
     }
@@ -1869,7 +1941,7 @@ class Blinky extends GhostBase {
         super(maze, player, 'GHOST_BLINKY', 'GHOST_BLINKY', GAME_CONFIG.GHOST_COLORS.BLINKY, startX, startY);
         
         const ts = GAME_CONFIG.TILE_SIZE;
-        this.viewDistance = 15 * ts; // 超遠距離まで見える
+        this.viewDistance = 25 * ts; // 超遠距離まで見える
         this.fov = Math.PI / 4;      // ただし視界は45度と狭い
         this.hearingRadius = 2 * ts; // 耳はあまり良くない
 
@@ -2256,7 +2328,8 @@ class GameEngine {
         this.level = 1;
         this.lastTime = performance.now();
         this.powerModeTimer = 0;
-        
+        this.radarJammedTimer = 0; // ★追加：ジャミングの残り時間
+
         // 描画・UI系
         this.uiManager = new FloatingUIManager();
         this.particles = new ParticleSystem();
@@ -2283,6 +2356,29 @@ class GameEngine {
             }, { passive: false });
         });
         window.addEventListener('powerPelletEaten', () => this.triggerPowerMode());
+        
+        // ★追加：ジャミングアイテム（青）を食べた時
+        window.addEventListener('jammingItemEaten', () => {
+            this.radarJammedTimer = MathUtils.randomInt(5, 15); // 5〜15秒のランダム
+            this.showCenterMessage('RADAR JAMMED', 'SYSTEM INTERFERENCE...', 3000);
+        });
+
+        // ★追加：位置バレアイテム（赤）を食べた時
+        window.addEventListener('signalItemEaten', () => {
+            const px = Math.floor(this.player.x / GAME_CONFIG.TILE_SIZE);
+            const py = Math.floor(this.player.y / GAME_CONFIG.TILE_SIZE);
+            
+            // 全てのゴーストに現在のプレイヤーの位置を教え、そこへ向かわせる
+            this.ghosts.forEach(g => {
+                if (g.state !== 'EATEN') {
+                    g.state = 'INVESTIGATE';
+                    g.investigateTarget = new Vector2(px, py);
+                    g.path = []; // 現在のルートを捨てて再計算
+                    g.investigateTimer = 5; // 到着後、5秒間はその場を警戒する
+                }
+            });
+            this.showCenterMessage('SIGNAL COMPROMISED', 'GHOSTS ARE CLOSING IN!', 3000);
+        });
 
         // 初期UIセット
         this.ui.hiscore.innerText = this.saveSystem.data.highScore.toString().padStart(6, '0');
@@ -2413,7 +2509,12 @@ class GameEngine {
     updatePlaying(dt) {
         // AI監督の更新（誰かに追われているか？）
         const isChased = this.ghosts.some(g => g.state === 'CHASE');
-        this.director.update(dt, isChased);
+        if (this.director) this.director.update(dt, isChased);
+
+        // ★追加：ジャミングタイマーの更新
+        if (this.radarJammedTimer > 0) {
+            this.radarJammedTimer -= dt;
+        }
 
 // パワーモードのタイマー処理
         if (this.powerModeTimer > 0) {
@@ -2617,7 +2718,7 @@ class GameEngine {
     }
 
     /** 毎フレームの描画統合 */
-    draw() {
+        draw() {
         // レンダラーに渡すエンティティリストの生成
         const entities = [
             ...this.maze.items,
@@ -2625,26 +2726,36 @@ class GameEngine {
             ...this.particles.getEntities()
         ];
         
-        // 3Dレンダリングの実行（内部解像度は1.5倍で描画されます）
+        // 3Dレンダリングの実行
         this.renderer.render(this.player, entities);
         
-        // --- ★UI表示位置（！や？）のズレを完全に修正する処理 ---
+        // --- ★追加：ジャミング時のレーダー非表示処理 ---
+        const radarContainer = document.getElementById('radar-container');
+        if (radarContainer) {
+            // ジャミングタイマーが動いている間は、レーダーをほぼ見えなくする
+            if (this.radarJammedTimer > 0) {
+                radarContainer.style.opacity = '0.1'; // わずかに見える程度（ノイズ感）
+                radarContainer.style.filter = 'blur(2px)'; // ぼかしを入れて故障感を出す
+            } else {
+                radarContainer.style.opacity = '1.0';
+                radarContainer.style.filter = 'none';
+            }
+        }
+
+        // --- ★フローティングUI(！マークや？マーク)の更新（ズレ対策版） ---
         const area = document.getElementById('view-area');
         if (area) {
-            // 内部の1.5倍解像度ではなく、実際の画面サイズを取得します
             const dw = area.clientWidth; 
             const dh = area.clientHeight;
-            
-            // 廊下の広さ調整に使用している数値「0.5」を使って、UI用の座標計算を完全に同期させます
+            // 廊下の広さ調整に使用している「0.5」を使って正確に位置を合わせます
             const uiProjDist = (dh * 0.5) / Math.tan(GAME_CONFIG.FOV / 2);
 
-            // 実際の画面サイズ(dw, dh)と、同期された投影距離(uiProjDist)をUIマネージャーに渡します
             this.uiManager.update(
                 this.player, 
                 this.ghosts, 
-                dw,         // 画面の実際の横幅を基準にする
-                dh,         // 画面の実際の高さを基準にする
-                uiProjDist  // 0.5基準で計算された正確な投影距離を渡す
+                dw, 
+                dh, 
+                uiProjDist
             );
         }
     }
