@@ -2744,7 +2744,7 @@ class GameEngine {
 
     /** プレイ中の行動に基づく実績(アチーブメント)の解除チェック */
     checkAchievements() {
-        if (this.player.score >= 10000) achievements.unlock(s'score_10k', 'Score 10,000 Points', '🏅');
+        if (this.player.score >= 10000) achievements.unlock('score_10k', 'Score 10,000 Points', '🏅');
         if (this.level >= 5) achievements.unlock('level_5', 'Reach Sector 5', '🗺️');
         if (this.combo.comboCount >= 4) achievements.unlock('combo_4', 'Eat 4 Ghosts in one go!', '👻');
         if (this.director.playerStealthTime > 60) achievements.unlock('ninja', 'Unseen for 60 seconds', '🥷');
