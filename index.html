@@ -913,8 +913,8 @@ class Renderer {
         this.radarCanvas.width = 120;
         this.radarCanvas.height = 120;
 
-        // ★横長バグの修正：投影距離を「画面の高さ」に基づいて計算
-        this.projDist = (this.h * 0.75) / Math.tan(GAME_CONFIG.FOV / 2);
+        
+        this.projDist = (this.w / 2) / Math.tan(GAME_CONFIG.FOV / 2);
     }
 
     render(player, entities) {
@@ -972,8 +972,7 @@ class Renderer {
     /** 8. RENDERER内の描画メソッドを完全に修復 (構文エラー解消版) */
     _drawSprites(player, entities, ctx, cw, ch, zBuf, viewAngle) {
         const ts = GAME_CONFIG.TILE_SIZE;
-        // 横長バグを直すための正しい投影距離
-        const projDist = (ch * 0.75) / Math.tan(GAME_CONFIG.FOV / 2);
+        const projDist = (cw / 2) / Math.tan(GAME_CONFIG.FOV / 2);
 
         const sprites = entities.filter(e => e.active).map(e => {
             const dx = e.x - player.x, dy = e.y - player.y;
@@ -1578,35 +1577,13 @@ class GhostBase {
 
     update(dt) {
         if (!this.active) return;
-        const dx = this.player.x - this.x;
-        const dy = this.player.y - this.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-
-        // --- 状態判定の修正 ---
-        if (this.state !== 'SCARED' && this.state !== 'EATEN') {
-            if (dist < 350) {
-                this.state = 'CHASE'; // 「！」が出る
-            } else if (this.state === 'CHASE') {
-                this.state = 'INVESTIGATE'; // 見失ったら「？」にする
-                this.investigateTimer = 3.0; // 3秒間だけ出す
-            }
-        }
         
-        if (this.state === 'INVESTIGATE') {
-            this.investigateTimer -= dt;
-            if (this.investigateTimer <= 0) this.state = 'PATROL';
-        }
+        this.gridX = Math.floor(this.x / GAME_CONFIG.TILE_SIZE);
+        this.gridY = Math.floor(this.y / GAME_CONFIG.TILE_SIZE);
 
-        // スピード決定
-        const baseS = this.state === 'SCARED' ? 80 : (this.state === 'CHASE' ? 120 : 80);
-        const s = baseS * (this.speedMult || 1.0);
-        
-        const a = Math.atan2(dy, dx) * (this.state === 'SCARED' ? -1 : 1);
-        const nx = this.x + Math.cos(a) * s * dt;
-        const ny = this.y + Math.sin(a) * s * dt;
-
-        if (!this.maze.isWall(Math.floor(nx / 64), Math.floor(ny / 64))) this.x = nx;
-        if (!this.maze.isWall(Math.floor(this.x / 64), Math.floor(ny / 64))) this.y = ny;
+        this._checkSenses();
+        this._updateState(dt);
+        this._moveAlongPath(dt);
     }
     // --- センサー（視覚と聴覚）の処理 ---
 /** センサーと自主的な判断ロジック */
