@@ -287,7 +287,7 @@ const GAME_CONFIG = {
     
     // ゴースト設定
     GHOST_SPEED_NORMAL: 80,  // ゴーストの基本速度 (プレイヤーより少し遅い)
-    GHOST_SPEED_CHASE: 100,   // 発見時の追跡速度
+    GHOST_SPEED_CHASE: 120,   // 発見時の追跡速度
     GHOST_SPEED_SCARED: 80,   // イジケ状態の速度
     GHOST_SCARED_TIME: 8000,  // イジケ状態の持続時間(ms)
     
@@ -421,7 +421,7 @@ class InputMgr {
                 const dist = Math.max(-stickMax, Math.min(stickMax, dy));
                 
                 // ★速度の微調整: 0.65を掛けてプレイヤーが速すぎないように制限
-                this.stickY = -(dist / stickMax) * 0.65;
+                this.stickY = -(dist / stickMax) * 1;
                 
                 // 見た目のスティックを縦にだけ動かす
                 document.getElementById('joystick-stick').style.transform = `translate(-50%, calc(-50% + ${dist}px))`;
@@ -904,8 +904,8 @@ class Renderer {
     resize() {
         const area = document.getElementById('view-area');
         if (!area) return;
-        this.w = area.clientWidth;
-        this.h = area.clientHeight;
+        this.w = Math.floor(area.clientWidth * 1.5);
+	this.h = Math.floor(area.clientHeight * 1.5);
         this.mainCanvas.width = this.w;
         this.mainCanvas.height = this.h;
         this.zBuffer = new Float32Array(this.w);
