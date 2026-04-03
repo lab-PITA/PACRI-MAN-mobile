@@ -864,14 +864,14 @@ class MazeEngine {
         const placeSpecial = (type, count) => {
             let placed = 0;
             let attempts = 0;
-            while (placed < count && attempts < 200) {
+            while (placed < count && attempts < 300) {
                 attempts++;
                 const rx = MathUtils.randomInt(1, this.width - 2);
                 const ry = MathUtils.randomInt(1, this.height - 2);
                 
                 // 通路であり、ハウス付近でなく、他の特殊アイテムから3マス以上離れていること
                 if (this.grid[ry][rx] === 0 && !this._isNearHouse(rx, ry)) {
-                    const tooClose = specialSpots.some(s => MathUtils.distance(rx, ry, s.x, s.y) < 4);
+                    const tooClose = specialSpots.some(s => MathUtils.distance(rx, ry, s.x, s.y) < 2);
                     if (!tooClose) {
                         specialSpots.push({x: rx, y: ry, type: type});
                         placed++;
