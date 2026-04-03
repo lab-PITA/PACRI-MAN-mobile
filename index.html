@@ -421,7 +421,7 @@ class InputMgr {
                 const dist = Math.max(-stickMax, Math.min(stickMax, dy));
                 
                 // ★速度の微調整: 0.65を掛けてプレイヤーが速すぎないように制限
-                this.stickY = -(dist / stickMax) * 1;
+                this.stickY = -(dist / stickMax) * 1.1;
                 
                 // 見た目のスティックを縦にだけ動かす
                 document.getElementById('joystick-stick').style.transform = `translate(-50%, calc(-50% + ${dist}px))`;
