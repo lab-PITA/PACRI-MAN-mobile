@@ -914,8 +914,7 @@ class Renderer {
         this.radarCanvas.height = 120;
 
         
-        this.projDist = (this.w / 2) / Math.tan(GAME_CONFIG.FOV / 2);
-    }
+        this.projDist = (this.h * 0.75) / Math.tan(GAME_CONFIG.FOV / 2);    }
 
     render(player, entities) {
         // 前方描画のみ実行（HTMLに無い rearCanvas はエラーの元なので除外して正解です）
@@ -972,7 +971,7 @@ class Renderer {
     /** 8. RENDERER内の描画メソッドを完全に修復 (構文エラー解消版) */
     _drawSprites(player, entities, ctx, cw, ch, zBuf, viewAngle) {
         const ts = GAME_CONFIG.TILE_SIZE;
-        const projDist = (cw / 2) / Math.tan(GAME_CONFIG.FOV / 2);
+        const projDist = (ch * 0.75) / Math.tan(GAME_CONFIG.FOV / 2);
 
         const sprites = entities.filter(e => e.active).map(e => {
             const dx = e.x - player.x, dy = e.y - player.y;
