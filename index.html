@@ -1890,23 +1890,25 @@ class Blinky extends GhostBase {
  * 視界は普通だが、聴覚が異常に発達している。足音を立てると壁越しでも気づく。
  */
 class Pinky extends GhostBase {
-    constructor(maze, player, startX, startY) {
+    constructor(maze, player, startX, startY, speedMult) {
         super(maze, player, 'GHOST_PINKY', 'GHOST_PINKY', GAME_CONFIG.GHOST_COLORS.PINKY, startX, startY);
         
         const ts = GAME_CONFIG.TILE_SIZE;
         this.viewDistance = 8 * ts;  
         this.fov = Math.PI / 2;      
-        this.hearingRadius = 8 * ts; // 半径8マス以内の足音を感知する（壁貫通）
+        this.hearingRadius = 8 * ts; 
 
         // マップの内側を逆時計回りに巡回
         const w = maze.width;
         const h = maze.height;
         const inset = 4;
+        
+        // ★変更：巡回の形はそのままに、スタート直後は「右下」へ向かわせる
         this.patrolNodes = [
-            { x: inset, y: inset },
-            { x: inset, y: h - inset - 1 },
-            { x: w - inset - 1, y: h - inset - 1 },
-            { x: w - inset - 1, y: inset }
+            { x: w - inset - 1, y: h - inset - 1 }, // 1. 右下へ
+            { x: w - inset - 1, y: inset },         // 2. 右上へ
+            { x: inset, y: inset },                 // 3. 左上(プレイヤー付近)へ
+            { x: inset, y: h - inset - 1 }          // 4. 左下へ
         ];
     }
 }
@@ -1916,26 +1918,27 @@ class Pinky extends GhostBase {
  * 視界距離は短いが、視野角が180度以上あり、横を通り抜けようとするプレイヤーを見逃さない。
  */
 class Inky extends GhostBase {
-    constructor(maze, player, startX, startY) {
+    constructor(maze, player, startX, startY, speedMult) {
         super(maze, player, 'GHOST_INKY', 'GHOST_INKY', GAME_CONFIG.GHOST_COLORS.INKY, startX, startY);
         
         const ts = GAME_CONFIG.TILE_SIZE;
-        this.viewDistance = 6 * ts;  // 短い
-        this.fov = Math.PI * 1.2;    // 超広角(216度)
+        this.viewDistance = 6 * ts;  
+        this.fov = Math.PI * 1.2;    
         this.hearingRadius = 3 * ts; 
 
         // 左半分の特定の部屋やエリアを8の字に巡回
         const w = maze.width;
         const h = maze.height;
+        
+        // ★変更：巡回の形はそのままに、スタート直後はテリトリー内の「右上」へ向かわせる
         this.patrolNodes = [
-            { x: 2, y: Math.floor(h/2) },
-            { x: Math.floor(w/2)-2, y: 2 },
-            { x: 2, y: 2 },
-            { x: Math.floor(w/2)-2, y: Math.floor(h/2) }
+            { x: Math.floor(w/2)-2, y: 2 },               // 1. 右上（上の中央付近）へ
+            { x: 2, y: 2 },                               // 2. 左上(プレイヤー付近)へ
+            { x: 2, y: Math.floor(h/2) },                 // 3. 左の中央へ
+            { x: Math.floor(w/2)-2, y: Math.floor(h/2) }  // 4. 中央へ
         ];
     }
 }
-
 /**
  * CLYDE (オレンジ) - The Paranoid (右半分の警戒・不審者)
  * 挙動不審。巡回ポイントがランダムで、時折立ち止まっては突然振り返ったりする（Investigate状態を自発的に発動）。
