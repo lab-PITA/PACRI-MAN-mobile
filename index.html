@@ -2430,7 +2430,7 @@ class GameEngine {
         const baseSize = 15;
         const sizeIncrease = Math.min(8, (this.level - 1) * 2);
         this.maze = new MazeEngine(baseSize + sizeIncrease, baseSize + sizeIncrease);
-        this.maze.buildLevel();
+        this.maze.buildLevel(this.level);
 
         this.player = new Player(this.maze);
         this.player.score = this.playerData.score;
