@@ -1367,7 +1367,7 @@ class FloatingUIManager {
                 const cx = (canvasWidth / 2) + screenX;
                 
                 const ts = GAME_CONFIG.TILE_SIZE;
-                const zOffset = ((ts / 2) - ghost.z - (ts * 1.5)) / correctedDist * projDistance;
+                const zOffset = ((ts / 2) - ghost.z - (ts * 2)) / correctedDist * projDistance;
                 const cy = (canvasHeight / 2) + zOffset;
 
                 const baseFontSize = 4000; 
@@ -2625,18 +2625,28 @@ class GameEngine {
             ...this.particles.getEntities()
         ];
         
-        // 3Dレンダリング
+        // 3Dレンダリングの実行（内部解像度は1.5倍で描画されます）
         this.renderer.render(this.player, entities);
         
-        // ★追加: フローティングUI(！マークや？マーク)の更新
-        const projDist = (this.renderer.mainCanvas.width / 2) / Math.tan(GAME_CONFIG.FOV / 2);
-        this.uiManager.update(
-            this.player, 
-            this.ghosts, 
-            this.renderer.mainCanvas.width, 
-            this.renderer.mainCanvas.height, 
-            this.renderer.projDist
-        );
+        // --- ★UI表示位置（！や？）のズレを完全に修正する処理 ---
+        const area = document.getElementById('view-area');
+        if (area) {
+            // 内部の1.5倍解像度ではなく、実際の画面サイズを取得します
+            const dw = area.clientWidth; 
+            const dh = area.clientHeight;
+            
+            // 廊下の広さ調整に使用している数値「0.5」を使って、UI用の座標計算を完全に同期させます
+            const uiProjDist = (dh * 0.5) / Math.tan(GAME_CONFIG.FOV / 2);
+
+            // 実際の画面サイズ(dw, dh)と、同期された投影距離(uiProjDist)をUIマネージャーに渡します
+            this.uiManager.update(
+                this.player, 
+                this.ghosts, 
+                dw,         // 画面の実際の横幅を基準にする
+                dh,         // 画面の実際の高さを基準にする
+                uiProjDist  // 0.5基準で計算された正確な投影距離を渡す
+            );
+        }
     }
 
     /** HTML上のUI(HUD)のテキストやアイコンの更新 */
