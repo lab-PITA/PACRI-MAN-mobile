@@ -1367,7 +1367,7 @@ class FloatingUIManager {
                 const cx = (canvasWidth / 2) + screenX;
                 
                 const ts = GAME_CONFIG.TILE_SIZE;
-                const zOffset = ((ts / 2) - ghost.z - (ts * 0.8)) / correctedDist * projDistance;
+                const zOffset = ((ts / 2) - ghost.z - (ts * 1.5)) / correctedDist * projDistance;
                 const cy = (canvasHeight / 2) + zOffset;
 
                 const baseFontSize = 4000; 
