@@ -1572,7 +1572,7 @@ _handleMovement(dt, inputMgr) {
 // ----------------------------------------------------------------------------
 // 13. STEALTH GHOST AI SYSTEM (視界、聴覚、巡回状態を持つ統合AI基盤)
 // ----------------------------------------------------------------------------
-class Ghost {
+class GhostBase {
     constructor(maze, player, id, type, color, startGridX, startGridY) {
         this.maze = maze;
         this.player = player;
