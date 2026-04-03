@@ -1034,37 +1034,7 @@ class Renderer {
             ctx.globalAlpha = 1.0;
         }
     }
-/** 画面リサイズ時の処理：各キャンバスの解像度を決定する */
-resize() {
-        const area = document.getElementById('view-area');
-        if (!area) return;
-        this.w = area.clientWidth;
-        this.h = area.clientHeight;
-        this.mainCanvas.width = this.w;
-        this.mainCanvas.height = this.h;
-        this.zBuffer = new Float32Array(this.w);
-        
-        this.radarCanvas.width = 120;
-        this.radarCanvas.height = 120;
 
-        // ★修正：投影距離を「画面の高さ」に基づいて計算するように変更
-        // これにより、縦長画面でも廊下やドットが横に潰れなくなります
-        this.projDist = (this.h / 1.5) / Math.tan(GAME_CONFIG.FOV / 2);
-    }
-    /** 描画のメイン処理 */
-    render(player, entities) {
-        // 前方描画
-        this._drawFloorAndCeiling(this.ctx, this.w, this.h);
-        this._castRays(player.x, player.y, player.angle, this.ctx, this.w, this.h, this.zBuffer);
-        this._drawSprites(player, entities, this.ctx, this.w, this.h, this.zBuffer, player.angle);
-        
-        // レーダー（マップ）の描画
-        this._drawRadar(player, entities);
-
-        
-    }
-
-    // --- (途中、_drawFloorAndCeiling / _castRays / _drawSprites はそのまま残してください) ---
 
     /** UI: プロキシミティ・レーダーの歪み修正版 (内部解像度に合わせる) */
     _drawRadar(player, entities) {
