@@ -2387,43 +2387,36 @@ class GameEngine {
     /** レベル(迷路)ごとの初期化と構築 */
     initLevel() {
         this.gameState = 'INIT';
-        // 難易度監督のリセット（もし実装されていれば）
         if (this.director) this.director.resetForLevel(this.level);
         
-        // 1. 迷路の生成：Lv1:15からLv5:23まで、毎レベル2ずつ大きくする
         const baseSize = 15;
         const sizeIncrease = Math.min(8, (this.level - 1) * 2);
         this.maze = new MazeEngine(baseSize + sizeIncrease, baseSize + sizeIncrease);
         this.maze.buildLevel();
 
-        // 2. プレイヤーの配置（現在のスコアと残機を引き継ぐ）
         this.player = new Player(this.maze);
         this.player.score = this.playerData.score;
         this.player.lives = this.playerData.lives;
 
-        // 3. 速度倍率の計算：Lv1で1.0、Lv5で1.5（追跡速度120→180）
-        // 毎レベル 0.125 ずつ増加
         const speedMult = 1.0 + (this.level - 1) * 0.125;
 
-        // 4. ゴーストの配置（速度倍率を渡す）
+        // ★修正：new Ghost ではなく、定義した個別クラスを呼び出す
         const cx = this.maze.ghostHouse.x;
         const cy = this.maze.ghostHouse.y;
         this.ghosts = [
-            new Ghost(this.maze, this.player, '#f00', cx, cy, speedMult),
-            new Ghost(this.maze, this.player, '#f0f', cx - 1, cy, speedMult),
-            new Ghost(this.maze, this.player, '#0ff', cx + 1, cy, speedMult),
-            new Ghost(this.maze, this.player, '#ffb852', cx, cy + 1, speedMult)
+            new Blinky(this.maze, this.player, cx, cy, speedMult),
+            new Pinky(this.maze, this.player, cx - 1, cy, speedMult),
+            new Inky(this.maze, this.player, cx + 1, cy, speedMult),
+            new Clyde(this.maze, this.player, cx, cy + 1, speedMult)
         ];
 
-        // 5. レンダラーとUIの再構築・リセット
         this.renderer = new Renderer(this.maze);
         this.updateHUD();
         this.particles.particles = [];
         this.powerModeTimer = 0;
         if (this.combo) this.combo.endPowerMode();
 
-        // 6. 画面演出
-        this.showMsg(`LEVEL ${this.level}`, "COMMENCING MISSION...", 2000);
+        this.showCenterMessage(`LEVEL ${this.level}`, "COMMENCING MISSION...", 2000);
         
         setTimeout(() => {
             this.gameState = 'PLAYING';
@@ -2751,7 +2744,7 @@ class GameEngine {
 
     /** プレイ中の行動に基づく実績(アチーブメント)の解除チェック */
     checkAchievements() {
-        if (this.player.score >= 10000) achievements.unlock('score_10k', 'Score 10,000 Points', '🏅');
+        if (this.player.score >= 10000) achievements.unlock(s'score_10k', 'Score 10,000 Points', '🏅');
         if (this.level >= 5) achievements.unlock('level_5', 'Reach Sector 5', '🗺️');
         if (this.combo.comboCount >= 4) achievements.unlock('combo_4', 'Eat 4 Ghosts in one go!', '👻');
         if (this.director.playerStealthTime > 60) achievements.unlock('ninja', 'Unseen for 60 seconds', '🥷');
