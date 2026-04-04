@@ -823,21 +823,50 @@ class MazeEngine {
         const cx = this.ghostHouse.x;
         const cy = this.ghostHouse.y;
         
-        for(let y = cy - 1; y <= cy + 1; y++) {
-            for(let x = cx - 1; x <= cx + 1; x++) {
-                this.grid[y][x] = 0;
+        // 1. 周囲5x5の範囲を走査して、回廊と建物を一気に作る
+        for (let y = cy - 2; y <= cy + 2; y++) {
+            for (let x = cx - 2; x <= cx + 2; x++) {
+                if (x <= 0 || x >= this.width - 1 || y <= 0 || y >= this.height - 1) continue;
+
+                const dx = x - cx;
+                const dy = y - cy;
+
+                // --- 建物の範囲 (中心3x3) ---
+                if (Math.abs(dx) <= 1 && Math.abs(dy) <= 1) {
+                    if (dx === 0 && dy === 0) {
+                        this.grid[y][x] = 0; // ハウスの中（1マス）は空洞
+                    } else if (dx === 1 && dy === 1) {
+                        this.grid[y][x] = 2; // 右下の角だけ「ゲート」
+                    } else {
+                        this.grid[y][x] = 3; // それ以外は「ハウスの壁」
+                    }
+                } 
+                // --- 廊下の範囲 (建物の外側1周) ---
+                else {
+                    this.grid[y][x] = 0; // ここを確実に廊下にする
+                }
             }
         }
-        
-        // ゲート（ゴースト専用出口）
-        this.grid[cy - 2][cx] = 2; 
+    }
 
-        // ゲートの先が必ず通路に繋がるように、上の壁を強制的に壊す
-        if (cy - 3 > 0) {
-            this.grid[cy - 3][cx] = 0;
-            this.grid[cy - 3][cx - 1] = 0;
-            this.grid[cy - 3][cx + 1] = 0;
+
+    /** 指定座標が壁かどうか判定 */
+    isWall(gridX, gridY, entity = null) {
+        if (gridX < 0 || gridX >= this.width || gridY < 0 || gridY >= this.height) return true;
+        const cell = this.grid[gridY][gridX];
+        
+        if (cell === 1) return true; // 外の迷路の壁
+        
+        // ハウス(3)とゲート(2)の判定
+        if (cell === 2 || cell === 3) {
+            // プレイヤーは建物に一切入れない
+            if (!entity || entity instanceof Player) return true;
+            
+            // ゴースト：脱出中(EXITING)か死んでいる(EATEN)時だけゲート(2)と壁(3)を通り抜けられる
+            return !(entity.state === 'EXITING' || entity.state === 'EATEN');
         }
+        
+        return false; // 通路
     }
 
     /** ドットとパワーエサを通路に配置する */
