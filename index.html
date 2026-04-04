@@ -1657,6 +1657,7 @@ _handleMovement(dt, inputMgr) {
                     this.dotsEaten++;
                     window.dispatchEvent(new CustomEvent('warpItemEaten')); // ★イベントに変更
                 }
+	}
     }
 }
 
@@ -2418,6 +2419,10 @@ class GameEngine {
         window.addEventListener('jammingItemEaten', () => {
             this.radarJammedTimer = MathUtils.randomInt(5, 15);
             this.showCenterMessage('RADAR JAMMED', 'SYSTEM INTERFERENCE...', 3000);
+        });
+	// ★追加：ワープの通知を受ける（これでオレンジドットが機能します）
+        window.addEventListener('warpItemEaten', () => {
+            this._trySafeWarp(); 
         });
 
         // ★追加：フリーズ（水色）の通知を受けてメッセージを表示
