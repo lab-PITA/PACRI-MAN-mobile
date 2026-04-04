@@ -1645,10 +1645,10 @@ _handleMovement(dt, inputMgr) {
                 }
                 else if (item.type === 'FREEZE') {
                     this.dotsEaten++;
-                    audio.playTone(200, 'sine', 0.5, 1.0);
-                    const time = MathUtils.randomFloat(3, 8); // 3〜8秒のランダム
-                    this.freezeTimer = time;
-                    this.showCenterMessage('SYSTEM FROZEN', `CANNOT MOVE FOR ${time.toFixed(1)}s!`, 3000);
+                    const time = MathUtils.randomFloat(1, 3);
+                    this.freezeTimer = time; // player.を消して自分のタイマーにセット
+                    // メッセージを出してもらうためにエンジンへ通知を飛ばす
+                    window.dispatchEvent(new CustomEvent('freezeItemEaten', { detail: { time } }));
                 }
                 else if (item.type === 'HYBRID') {
                     this.score += 500; this.dotsEaten++;
@@ -2427,6 +2427,11 @@ class GameEngine {
             this.showCenterMessage('RADAR JAMMED', 'SYSTEM INTERFERENCE...', 3000);
         });
 
+	// ★追加：フリーズアイテムを拾った時のメッセージ処理
+        window.addEventListener('freezeItemEaten', (e) => {
+            this.showCenterMessage('SYSTEM FROZEN', `STUCK FOR ${e.detail.time.toFixed(1)}s!`, 3000);
+            if(typeof audio !== 'undefined') audio.playTone(200, 'sine', 0.5, 1.0);
+        });
         // ★追加：位置バレアイテム（赤）を食べた時
         // ★修正：位置バレアイテム（赤）を食べた時の処理
         window.addEventListener('signalItemEaten', () => {
