@@ -821,11 +821,12 @@ class MazeEngine {
 
 /** マップ中央にゴーストハウスを生成し、周囲の廊下を確定させる */
     /** マップ中央に3x3のカベを作り、1箇所だけ穴を開ける（超シンプル版） */
+    /** 物理的な3x3のカベを作り、中心と繋がる4マスのうち、一番遠い場所を入口にする */
     _buildGhostHouse() {
         const cx = this.ghostHouse.x;
         const cy = this.ghostHouse.y;
         
-        // 1. 周囲5x5の範囲をすべて「廊下(0)」にする（更地にする）
+        // 1. 周囲5x5の範囲をすべて「廊下(0)」で更地にする
         for (let y = cy - 2; y <= cy + 2; y++) {
             for (let x = cx - 2; x <= cx + 2; x++) {
                 if (x > 0 && x < this.width - 1 && y > 0 && y < this.height - 1) {
@@ -841,20 +842,45 @@ class MazeEngine {
             }
         }
         
-        // 3. 真ん中の1マス（リスポーン地点）を「道(0)」にする
+        // 3. 真ん中（リスポーン地点）を「道(0)」にする
         this.grid[cy][cx] = 0; 
         
-        // 4. 右下の1マスだけを「道(0)」にする（これが入り口の穴になります）
-        // これで「3x3のカベに、1マスだけ穴が開いている」状態になります。
-        this.grid[cy + 1][cx + 1] = 0; 
+        // 4. 入口を決める：中心(cx, cy)に上下左右で隣接する4マスのうち、
+        // プレイヤーの初期位置(1, 1)から一番遠い場所を選ぶ
+        const candidates = [
+            {x: cx + 1, y: cy}, // 右
+            {x: cx - 1, y: cy}, // 左
+            {x: cx, y: cy + 1}, // 下
+            {x: cx, y: cy - 1}  // 上
+        ];
+        
+        let gate = candidates[0];
+        let maxDistSq = 0;
+        for (const c of candidates) {
+            const dx = c.x - 1;
+            const dy = c.y - 1;
+            const distSq = dx * dx + dy * dy;
+            if (distSq > maxDistSq) {
+                maxDistSq = distSq;
+                gate = c;
+            }
+        }
+        
+        // 5. 選ばれた1マスに穴（道）を開ける
+        this.grid[gate.y][gate.x] = 0; 
     }
 
-    /** 判定ロジック：ただ「1なら壁、それ以外は道」とするだけ */
+    /** 判定ロジック：1ならカベ、0なら道 */
     isWall(gridX, gridY) {
         if (gridX < 0 || gridX >= this.width || gridY < 0 || gridY >= this.height) return true;
-        // グリッドの中身が 1 なら壁。それ以外（0）ならすべて道です。
         return this.grid[gridY][gridX] === 1;
     }
+
+    /** ハウス付近判定 */
+    _isNearHouse(x, y) {
+        return Math.abs(x - this.ghostHouse.x) <= 2 && Math.abs(y - this.ghostHouse.y) <= 2;
+    }
+} // <--- ★ここ！このカッコが MazeEngine クラスの終わりです。これが無いと Renderer でエラーが出ます。
 
     /** ドットとパワーエサを通路に配置する */
     _placeItems(level) {
