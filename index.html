@@ -819,58 +819,40 @@ class MazeEngine {
     }
 
 /** マップ中央にゴーストハウスを生成し、周囲の廊下を確定させる */
+    /** マップ中央に3x3のカベを作り、1箇所だけ穴を開ける（超シンプル版） */
     _buildGhostHouse() {
         const cx = this.ghostHouse.x;
         const cy = this.ghostHouse.y;
         
-        // 1. 周囲5x5の範囲を走査して、回廊（廊下）と建物本体を一気に作る
+        // 1. 周囲5x5の範囲をすべて「廊下(0)」にする（更地にする）
         for (let y = cy - 2; y <= cy + 2; y++) {
             for (let x = cx - 2; x <= cx + 2; x++) {
-                // 迷路の枠外に出ないようにチェック
-                if (x <= 0 || x >= this.width - 1 || y <= 0 || y >= this.height - 1) continue;
-
-                const dx = x - cx;
-                const dy = y - cy;
-
-                // --- 2. 建物本体の範囲 (中心3x3) ---
-                if (Math.abs(dx) <= 1 && Math.abs(dy) <= 1) {
-                    if (dx === 0 && dy === 0) {
-                        this.grid[y][x] = 0; // ハウスの中心（リスポーン地点）は空洞
-                    } else if (dx === 1 && dy === 1) {
-                        this.grid[y][x] = 2; // 【穴】右下の角1マスだけを「ゲート」にする
-                    } else {
-                        this.grid[y][x] = 3; // 【壁】それ以外はゴーストも通れない「ハウスの壁」
-                    }
-                } 
-                // --- 3. 周囲の回廊の範囲 (建物の外側1周分) ---
-                else {
-                    // ここを確実に「廊下(0)」にすることで、建物の周りに1マス幅の道を作る
+                if (x > 0 && x < this.width - 1 && y > 0 && y < this.height - 1) {
                     this.grid[y][x] = 0;
                 }
             }
         }
-    }
-
-    /** 指定座標が壁かどうか判定（物理的な穴の制御） */
-    isWall(gridX, gridY, entity = null) {
-        if (gridX < 0 || gridX >= this.width || gridY < 0 || gridY >= this.height) return true;
-        const cell = this.grid[gridY][gridX];
         
-        // 通常の迷路の壁(1) と ハウスの壁(3) は、プレイヤー・ゴースト共に「絶対に通れない壁」
-        if (cell === 1 || cell === 3) return true;
-        
-        // 入り口の穴（ゲート：2）の判定
-        if (cell === 2) {
-            // プレイヤー（またはentity未指定）は入り口を通れない（壁として扱う）
-            if (!entity || entity instanceof Player) return true;
-            
-            // ゴーストの場合：
-            // 脱出中(EXITING)か、死んで目玉の状態(EATEN)の時だけ、この穴を「通路」として通れる
-            // それ以外の巡回・追跡中は、穴であっても「壁」として扱い、中に入らせないようにする
-            return !(entity.state === 'EXITING' || entity.state === 'EATEN');
+        // 2. 3x3の範囲を「普通のカベ(1)」で埋める
+        for (let y = cy - 1; y <= cy + 1; y++) {
+            for (let x = cx - 1; x <= cx + 1; x++) {
+                this.grid[y][x] = 1; 
+            }
         }
         
-        return false; // 通常の廊下(0)
+        // 3. 真ん中の1マス（リスポーン地点）を「道(0)」にする
+        this.grid[cy][cx] = 0; 
+        
+        // 4. 右下の1マスだけを「道(0)」にする（これが入り口の穴になります）
+        // これで「3x3のカベに、1マスだけ穴が開いている」状態になります。
+        this.grid[cy + 1][cx + 1] = 0; 
+    }
+
+    /** 判定ロジック：ただ「1なら壁、それ以外は道」とするだけ */
+    isWall(gridX, gridY) {
+        if (gridX < 0 || gridX >= this.width || gridY < 0 || gridY >= this.height) return true;
+        // グリッドの中身が 1 なら壁。それ以外（0）ならすべて道です。
+        return this.grid[gridY][gridX] === 1;
     }
 
     /** ドットとパワーエサを通路に配置する */
