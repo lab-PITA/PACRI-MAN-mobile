@@ -1064,7 +1064,8 @@ class Renderer {
             ctx.globalAlpha = b * 0.8;
             const cy = ch / 2;
             
-            if (s.e.type === 'DOT' || s.e.type === 'POWER' || s.e.type === 'JAMMING' || s.e.type === 'SIGNAL') {
+            const itemTypes = ['DOT', 'POWER', 'JAMMING', 'SIGNAL', 'FREEZE', 'HYBRID', 'WARP'];
+            if (itemTypes.includes(s.e.type)) {
                 // ドット系の描画（床に置く）
                 const dotY = cy + (size * 0.35);
                 
