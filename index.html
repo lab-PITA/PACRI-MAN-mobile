@@ -1647,7 +1647,7 @@ _handleMovement(dt, inputMgr) {
                     this.dotsEaten++;
                     audio.playTone(200, 'sine', 0.5, 1.0);
                     const time = MathUtils.randomFloat(3, 8); // 3〜8秒のランダム
-                    this.player.freezeTimer = time;
+                    this.freezeTimer = time;
                     this.showCenterMessage('SYSTEM FROZEN', `CANNOT MOVE FOR ${time.toFixed(1)}s!`, 3000);
                 }
                 else if (item.type === 'HYBRID') {
@@ -2430,17 +2430,17 @@ class GameEngine {
         // ★追加：位置バレアイテム（赤）を食べた時
         // ★修正：位置バレアイテム（赤）を食べた時の処理
         window.addEventListener('signalItemEaten', () => {
-            const px = Math.floor(this.player.x / GAME_CONFIG.TILE_SIZE);
-            const py = Math.floor(this.player.y / GAME_CONFIG.TILE_SIZE);
-
             this.ghosts.forEach(g => {
                 if (g.state !== 'EATEN') {
-                    // --- ここを強化 ---
-                    g.state = 'CHASE';      // 強制的に追跡モードにする
-                    g.scaredTimer = 0;     // パワー餌の無敵時間を強制終了させる
-                    g.path = [];           // 今のルートを捨てて即座にプレイヤーを狙う
+                    g.state = 'CHASE';      
+                    g.scaredTimer = 0;     
+                    g.path = [];           
+                    g.pathUpdateTimer = 0; // ★追加：0.3秒待たずに今すぐ計算させる
+                    g.speed = g.chaseSpeed * 1.2; // ★追加：赤ドット時は通常よりさらに速くする
                 }
             });
+            // ★追加：警告音を強制的に鳴らす
+            if(typeof audio !== 'undefined') audio.playTone(150, 'square', 0.6, 1.2); 
             this.showCenterMessage('SIGNAL COMPROMISED', 'GHOSTS ARE CONVERGING!', 3000);
         });
             
