@@ -888,22 +888,25 @@ class MazeEngine {
         ];
         powerPelletSpots.forEach(s => specialSpots.push({x: s.x, y: s.y, type: 'POWER'}));
 
-        let jammingCount = 0;
-        let signalCount = 0;
-        if (level === 3) jammingCount = 2;
-        if (level === 4) { jammingCount = 3; signalCount = 1; }
-        if (level >= 5) { jammingCount = 4; signalCount = 2; }
+        // 2. レベルに応じた特殊ドットの個数設定（無限スケーリング）
+        let jammingCount = Math.min(6, Math.floor(level / 2));
+        let signalCount = Math.min(5, Math.floor(level / 3));
+
+        // 水色（FREEZE）：レベル2で1個、以降レベル1増えるごとに1個増
+        let freezeCount = level >= 2 ? (level - 1) : 0;
+        // マゼンタ（HYBRID）：レベル5で1個、以降レベル2増すごとに1個増
+        let hybridCount = level >= 5 ? Math.floor((level - 5) / 2) + 1 : 0;
+        // オレンジ（WARP）：レベル6から出現
+        let warpCount = level >= 6 ? 1 : 0;
 
         const placeSpecial = (type, count) => {
-            let placed = 0;
-            let attempts = 0;
-            while (placed < count && attempts < 300) {
+            let placed = 0; let attempts = 0;
+            while (placed < count && attempts < 400) {
                 attempts++;
                 const rx = MathUtils.randomInt(1, this.width - 2);
                 const ry = MathUtils.randomInt(1, this.height - 2);
                 if (this.grid[ry][rx] === 0 && !this._isNearHouse(rx, ry)) {
-                    const tooClose = specialSpots.some(s => MathUtils.distance(rx, ry, s.x, s.y) < 2);
-                    if (!tooClose) {
+                    if (!specialSpots.some(s => MathUtils.distance(rx, ry, s.x, s.y) < 2)) {
                         specialSpots.push({x: rx, y: ry, type: type});
                         placed++;
                     }
@@ -911,8 +914,12 @@ class MazeEngine {
             }
         };
 
+        // アイテムを配置
         placeSpecial('JAMMING', jammingCount);
         placeSpecial('SIGNAL', signalCount);
+        placeSpecial('FREEZE', freezeCount);
+        placeSpecial('HYBRID', hybridCount);
+        placeSpecial('WARP', warpCount);
 
         for (let y = 1; y < this.height - 1; y++) {
             for (let x = 1; x < this.width - 1; x++) {
@@ -1061,15 +1068,20 @@ class Renderer {
                 // ドット系の描画（床に置く）
                 const dotY = cy + (size * 0.35);
                 
-                // タイプに応じて色を決定
                 if (s.e.type === 'POWER') {
-                    ctx.fillStyle = GAME_CONFIG.COLORS.POWER_PELLET; // 薄緑
-                } else if (s.e.type === 'JAMMING') {
-                    ctx.fillStyle = '#0000ff'; // ジャミング：鮮やかな青
+                    ctx.fillStyle = GAME_CONFIG.COLORS.POWER_PELLET;
+                } else if (s.e.type === 'FREEZE') {
+                    ctx.fillStyle = '#00ffff'; // 水色
+                } else if (s.e.type === 'HYBRID') {
+                    ctx.fillStyle = '#ff00ff'; // マゼンタ
+                } else if (s.e.type === 'WARP') {
+                    ctx.fillStyle = '#ffa500'; // オレンジ
                 } else if (s.e.type === 'SIGNAL') {
-                    ctx.fillStyle = '#ff0000'; // 位置バレ：警告の赤
+                    ctx.fillStyle = '#ff0000'; // 赤
+                } else if (s.e.type === 'JAMMING') {
+                    ctx.fillStyle = '#0000ff'; // 青
                 } else {
-                    ctx.fillStyle = GAME_CONFIG.COLORS.DOT; // 通常：黄色
+                    ctx.fillStyle = GAME_CONFIG.COLORS.DOT;
                 }
 
                 ctx.beginPath(); 
@@ -1494,17 +1506,22 @@ class Player {
         
         this.score = 0;
         this.lives = 3;
+	this.freezeTimer = 0;
         this.dotsEaten = 0;
         this.headBobTimer = 0;
     }
 
     update(dt, inputMgr, particles) {
-        this._handleRotation(dt, inputMgr);
-        this._handleMovement(dt, inputMgr);
+        // ★タイマーを減らす処理を追加
+        if (this.freezeTimer > 0) {
+            this.freezeTimer -= dt;
+        }
+
+        this._handleRotation(dt, inputMgr); // 視点変更（回転）は常に可能
+        this._handleMovement(dt, inputMgr); // この中で移動を制限します
         this._applyHeadBob(dt);
         this._checkItemCollisions(particles);
     }
-
           _handleRotation(dt, inputMgr) {
         // ボタン入力をチェックしてターゲット角度を90度ずつずらす
         if (inputMgr.turnLeftTrigger) {
@@ -1529,7 +1546,14 @@ class Player {
     }
 
 _handleMovement(dt, inputMgr) {
+        // ★タイマーがある間は「移動処理」をすべてスキップ
+        if (this.freezeTimer > 0) {
+            this.isMoving = false;
+            return; 
+        }
+
         this.isMoving = false;
+        this.makingNoise = false;
         this.makingNoise = false;
         let moveStep = 0;
 
@@ -1613,12 +1637,28 @@ _handleMovement(dt, inputMgr) {
                     audio.playTone(600, 'sawtooth', 0.3, 0.5); // 少し濁った音
                     window.dispatchEvent(new CustomEvent('jammingItemEaten'));
                 }
-                // ★追加：位置バレドット（赤）を食べた時
                 else if (item.type === 'SIGNAL') {
-                    this.score += 200; // リスクが高い分、高スコア
-                    this.dotsEaten++;
-                    audio.playTone(300, 'square', 0.5, 0.8); // 警告のような低い音
+                    this.score += 200; this.dotsEaten++;
+                    audio.playTone(300, 'square', 0.5, 0.8);
                     window.dispatchEvent(new CustomEvent('signalItemEaten'));
+                }
+                else if (item.type === 'FREEZE') {
+                    this.dotsEaten++;
+                    audio.playTone(200, 'sine', 0.5, 1.0);
+                    const time = MathUtils.randomFloat(3, 8); // 3〜8秒のランダム
+                    this.player.freezeTimer = time;
+                    this.showCenterMessage('SYSTEM FROZEN', `CANNOT MOVE FOR ${time.toFixed(1)}s!`, 3000);
+                }
+                else if (item.type === 'HYBRID') {
+                    this.score += 500; this.dotsEaten++;
+                    audio.playTone(400, 'sawtooth', 0.5, 0.8);
+                    window.dispatchEvent(new CustomEvent('signalItemEaten')); // 赤の効果
+                    window.dispatchEvent(new CustomEvent('jammingItemEaten')); // 青の効果
+                    this.showCenterMessage('HYBRID INTERFERENCE', 'CONVERGING & RADAR LOST!', 4000);
+                }
+                else if (item.type === 'WARP') {
+                    this.dotsEaten++;
+                    this._trySafeWarp(); // 次のステップで作成する関数を呼ぶ
                 }
             }
         }
@@ -2387,21 +2427,22 @@ class GameEngine {
         });
 
         // ★追加：位置バレアイテム（赤）を食べた時
+        // ★修正：位置バレアイテム（赤）を食べた時の処理
         window.addEventListener('signalItemEaten', () => {
             const px = Math.floor(this.player.x / GAME_CONFIG.TILE_SIZE);
             const py = Math.floor(this.player.y / GAME_CONFIG.TILE_SIZE);
-            
-            // 全てのゴーストに現在のプレイヤーの位置を教え、そこへ向かわせる
+
             this.ghosts.forEach(g => {
                 if (g.state !== 'EATEN') {
-                    g.state = 'INVESTIGATE';
-                    g.investigateTarget = new Vector2(px, py);
-                    g.path = []; // 現在のルートを捨てて再計算
-                    g.investigateTimer = 5; // 到着後、5秒間はその場を警戒する
+                    // --- ここを強化 ---
+                    g.state = 'CHASE';      // 強制的に追跡モードにする
+                    g.scaredTimer = 0;     // パワー餌の無敵時間を強制終了させる
+                    g.path = [];           // 今のルートを捨てて即座にプレイヤーを狙う
                 }
             });
-            this.showCenterMessage('SIGNAL COMPROMISED', 'GHOSTS ARE CLOSING IN!', 3000);
+            this.showCenterMessage('SIGNAL COMPROMISED', 'GHOSTS ARE CONVERGING!', 3000);
         });
+            
 
         // 初期UIセット
         this.ui.hiscore.innerText = this.saveSystem.data.highScore.toString().padStart(6, '0');
@@ -2459,7 +2500,7 @@ class GameEngine {
         this.player.score = this.playerData.score;
         this.player.lives = this.playerData.lives;
 
-        const speedMult = 1.0 + (this.level - 1) * 0.125;
+        const speedMult = 1.0 + (this.level - 1) * 0.2;
 
         // ★修正：new Ghost ではなく、定義した個別クラスを呼び出す
         const cx = this.maze.ghostHouse.x;
@@ -2834,9 +2875,44 @@ class GameEngine {
         if (this.player.score >= 10000) achievements.unlock('score_10k', 'Score 10,000 Points', '🏅');
         if (this.level >= 5) achievements.unlock('level_5', 'Reach Sector 5', '🗺️');
         if (this.combo.comboCount >= 4) achievements.unlock('combo_4', 'Eat 4 Ghosts in one go!', '👻');
-        if (this.director.playerStealthTime > 60) achievements.unlock('ninja', 'Unseen for 60 seconds', '🥷');
+	if (this.director.playerStealthTime > 60) achievements.unlock('ninja', 'Unseen for 60 seconds', '🥷');
     }
-}
+
+    /** 安全な交差点を探してワープを試みる */
+    _trySafeWarp() {
+        const candidates = [];
+        const ts = GAME_CONFIG.TILE_SIZE;
+
+        for (let y = 1; y < this.maze.height - 1; y++) {
+            for (let x = 1; x < this.maze.width - 1; x++) {
+                if (this.maze.grid[y][x] !== 0) continue;
+
+                // 条件1：3つ以上の道がある（交差点）
+                let paths = (this.maze.grid[y-1][x] === 0) + (this.maze.grid[y+1][x] === 0) + 
+                            (this.maze.grid[y][x-1] === 0) + (this.maze.grid[y][x+1] === 0);
+                if (paths >= 3) {
+                    // 条件2：周囲5マス以内にゴーストがいない
+                    let isSafe = true;
+                    for (const g of this.ghosts) {
+                        const dist = MathUtils.distance(x, y, g.x/ts, g.y/ts);
+                        if (dist <= 5) { isSafe = false; break; }
+                    }
+                    if (isSafe) candidates.push({x, y});
+                }
+            }
+        }
+
+        if (candidates.length > 0) {
+            const target = candidates[MathUtils.randomInt(0, candidates.length - 1)];
+            this.player.x = target.x * ts + ts / 2;
+            this.player.y = target.y * ts + ts / 2;
+            audio.playTone(800, 'square', 0.2, 0.4);
+            this.showCenterMessage('WARP SUCCESS', 'SAFE JUNCTION REACHED', 3000);
+        } else {
+            this.showCenterMessage('WARP FAILED', 'NO SAFE JUNCTION FOUND', 3000);
+        }
+    }
+}       
 // ============================================================================
 // BOOTSTRAP: DOM読み込み完了後にシステムを起動するエントリーポイント
 // ============================================================================
