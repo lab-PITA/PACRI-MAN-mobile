@@ -1655,12 +1655,12 @@ _handleMovement(dt, inputMgr) {
                 }
                 else if (item.type === 'WARP') {
                     this.dotsEaten++;
-                    window.dispatchEvent(new CustomEvent('warpItemEaten')); // ★イベントに変更
+		window.dispatchEvent(new CustomEvent('warpItemEaten'));
                 }
             }
-	}
-    }
-}
+        }
+    } // _checkItemCollisions の終わり
+} // Player クラスの終わり
 
 // ----------------------------------------------------------------------------
 // 13. STEALTH GHOST AI SYSTEM (視界、聴覚、巡回状態を持つ統合AI基盤)
