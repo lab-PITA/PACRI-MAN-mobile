@@ -822,6 +822,7 @@ class MazeEngine {
 /** マップ中央にゴーストハウスを生成し、周囲の廊下を確定させる */
     /** マップ中央に3x3のカベを作り、1箇所だけ穴を開ける（超シンプル版） */
 
+    /** 物理的な3x3のカベを作り、中心と繋がる上下左右の4マスのうち、一番プレイヤーから遠い場所を入口にする */
     _buildGhostHouse() {
         const cx = this.ghostHouse.x;
         const cy = this.ghostHouse.y;
@@ -845,8 +846,7 @@ class MazeEngine {
         // 3. 真ん中（リスポーン地点）を「道(0)」にする
         this.grid[cy][cx] = 0; 
         
-        // 4. 入口を決める：中心(cx, cy)に上下左右で隣接する4マスのうち、
-        // プレイヤーの初期位置(1, 1)から一番遠い場所を選ぶ
+        // 4. 正しい入口の選定：中心(cx, cy)に隣接する「上下左右」の4つ
         const candidates = [
             {x: cx + 1, y: cy}, // 右
             {x: cx - 1, y: cy}, // 左
@@ -866,43 +866,34 @@ class MazeEngine {
             }
         }
         
-        // 5. 選ばれた1マスを「道(0)」にして穴を開ける
+        // 5. 選ばれた1マスを「道(0)」にして中心と外の廊下を繋ぐ
         this.grid[gate.y][gate.x] = 0; 
     }
 
-    /** 判定ロジック：1ならカベ、0なら道 */
+    /** 判定ロジック：1ならカベ、それ以外は道 */
     isWall(gridX, gridY) {
         if (gridX < 0 || gridX >= this.width || gridY < 0 || gridY >= this.height) return true;
         return this.grid[gridY][gridX] === 1;
     }
 
-    /** ハウス付近判定 */
-    _isNearHouse(x, y) {
-        return Math.abs(x - this.ghostHouse.x) <= 2 && Math.abs(y - this.ghostHouse.y) <= 2;
-    }
-} // <--- ★重要：このカッコが MazeEngine クラスの終わりです。これが無いと Renderer でエラーが出ます。
-
-    /** ドットとパワーエサを通路に配置する */
+    /** 特殊ドットの配置ロジック */
     _placeItems(level) {
         this.items = [];
         this.totalDots = 0;
-        const specialSpots = []; // 特殊アイテムを置いた場所を記録
+        const specialSpots = [];
 
-        // 1. パワーエサの基本位置を予約
         const powerPelletSpots = [
             {x: 1, y: 1}, {x: this.width - 2, y: 1},
             {x: 1, y: this.height - 2}, {x: this.width - 2, y: this.height - 2}
         ];
         powerPelletSpots.forEach(s => specialSpots.push({x: s.x, y: s.y, type: 'POWER'}));
 
-        // 2. レベルに応じた特殊ドットの個数設定
         let jammingCount = 0;
         let signalCount = 0;
         if (level === 3) jammingCount = 2;
         if (level === 4) { jammingCount = 3; signalCount = 1; }
         if (level >= 5) { jammingCount = 4; signalCount = 2; }
 
-        // 3. 特殊ドットを距離を保ちながら配置するヘルパー関数
         const placeSpecial = (type, count) => {
             let placed = 0;
             let attempts = 0;
@@ -910,8 +901,6 @@ class MazeEngine {
                 attempts++;
                 const rx = MathUtils.randomInt(1, this.width - 2);
                 const ry = MathUtils.randomInt(1, this.height - 2);
-                
-                // 通路であり、ハウス付近でなく、他の特殊アイテムから3マス以上離れていること
                 if (this.grid[ry][rx] === 0 && !this._isNearHouse(rx, ry)) {
                     const tooClose = specialSpots.some(s => MathUtils.distance(rx, ry, s.x, s.y) < 2);
                     if (!tooClose) {
@@ -925,16 +914,12 @@ class MazeEngine {
         placeSpecial('JAMMING', jammingCount);
         placeSpecial('SIGNAL', signalCount);
 
-        // 4. 全てのマスを走査してドットを設置
         for (let y = 1; y < this.height - 1; y++) {
             for (let x = 1; x < this.width - 1; x++) {
-                // ハウス付近は除外
                 if (this._isNearHouse(x, y)) continue;
                 if (this.grid[y][x] !== 0) continue;
-                // スタート地点も除外
                 if (MathUtils.distance(x, y, this.spawnPoint.x, this.spawnPoint.y) < 2) continue;
 
-                // 予約された特殊地点かチェック
                 const special = specialSpots.find(s => s.x === x && s.y === y);
                 const type = special ? special.type : 'DOT';
 
@@ -950,7 +935,7 @@ class MazeEngine {
         }
     }
 
-    // ハウス付近判定のヘルパーメソッド（_placeItemsの直後に追加してください）
+    /** ハウス付近判定 */
     _isNearHouse(x, y) {
         return Math.abs(x - this.ghostHouse.x) <= 2 && Math.abs(y - this.ghostHouse.y) <= 2;
     }
