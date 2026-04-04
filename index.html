@@ -880,7 +880,6 @@ class MazeEngine {
     _isNearHouse(x, y) {
         return Math.abs(x - this.ghostHouse.x) <= 2 && Math.abs(y - this.ghostHouse.y) <= 2;
     }
-} // <--- ★ここ！このカッコが MazeEngine クラスの終わりです。これが無いと Renderer でエラーが出ます。
 
     /** ドットとパワーエサを通路に配置する */
     _placeItems(level) {
