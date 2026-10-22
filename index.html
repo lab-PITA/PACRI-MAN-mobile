@@ -2545,7 +2545,9 @@ class GameEngine {
             new Clyde(this.maze, this.player, cx, cy, speedMult)
         ];
 
-        this.renderer = new Renderer(this.maze);
+        // Renderer は resize リスナーを登録するので、毎レベル作り直さず使い回す
+        if (this.renderer) this.renderer.maze = this.maze;
+        else this.renderer = new Renderer(this.maze);
         this.updateHUD();
         this.particles.particles = [];
         this.powerModeTimer = 0;
@@ -2871,7 +2873,8 @@ class GameEngine {
             this.ui.hiscore.style.color = '#0f0';
         }
 
-        // 残機アイコンの描画更新
+        // 残機アイコンの描画更新（毎フレーム作り直さないよう、数が変わった時だけ）
+        if (this.ui.lives.childElementCount === this.player.lives) return;
         this.ui.lives.innerHTML = '';
         for (let i = 0; i < this.player.lives; i++) {
             const lifeIcon = document.createElement('div');
