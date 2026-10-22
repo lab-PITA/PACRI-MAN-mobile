@@ -524,9 +524,64 @@ class AudioEngine {
         
         this.isMuted = false;
         
-        // BGM用の発音ノード管理
-        this.bgmOscillators = [];
-        this.isPlayingBgm = false;
+        // BGM（効果音より小さめにするため専用の音量ノードを通す）
+        this.bgmGain = this.ctx.createGain();
+        this.bgmGain.gain.value = 0.5;
+        this.bgmGain.connect(this.masterGain);
+        this.bgmName = null;     // 再生中の曲名（null = 停止中）
+        this.bgmStep = 0;        // 何ステップ目(16分音符単位)か
+        this.bgmNextTime = 0;    // 次のステップを鳴らす時刻(AudioContext の時間)
+        this.bgmTimer = null;
+    }
+
+    /**
+     * BGM を切り替える。同じ曲なら何もしない。null で停止。
+     * 曲は BGM_TRACKS に定義した 16分音符の譜面を、少し先まで予約して鳴らす方式。
+     */
+    setBgm(name) {
+        if (name === this.bgmName) return;
+        this.bgmName = name;
+        this.bgmStep = 0;
+        if (!name) {
+            clearInterval(this.bgmTimer);
+            this.bgmTimer = null;
+            return;
+        }
+        this.bgmNextTime = this.ctx.currentTime + 0.05;
+        if (!this.bgmTimer) this.bgmTimer = setInterval(() => this._scheduleBgm(), 25);
+    }
+
+    _scheduleBgm() {
+        const track = BGM_TRACKS[this.bgmName];
+        if (!track || this.isMuted) return;
+        const now = this.ctx.currentTime;
+        // タブが裏に回るなどでタイマーが止まっていたら、溜まった分は鳴らさず今から再開
+        if (this.bgmNextTime < now - 0.2) this.bgmNextTime = now + 0.05;
+
+        const stepDur = 60 / track.bpm / 4;
+        while (this.bgmNextTime < now + 0.1) {
+            for (const part of track.parts) {
+                const note = part.notes[this.bgmStep % part.notes.length];
+                if (note !== null) {
+                    this._playBgmNote(note, this.bgmNextTime, part.type, stepDur * part.length, part.vol);
+                }
+            }
+            this.bgmNextTime += stepDur;
+            this.bgmStep++;
+        }
+    }
+
+    _playBgmNote(midi, time, type, duration, vol) {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(440 * Math.pow(2, (midi - 69) / 12), time);
+        gain.gain.setValueAtTime(vol, time);
+        gain.gain.exponentialRampToValueAtTime(0.001, time + duration);
+        osc.connect(gain);
+        gain.connect(this.bgmGain);
+        osc.start(time);
+        osc.stop(time + duration + 0.02);
     }
 
     /** ユーザーアクション(STARTクリック時)にAudioContextを再開する(ブラウザ制限対策) */
@@ -594,6 +649,61 @@ playEatGhostSound() {
         setTimeout(() => this.playTone(1600, 'sine', 0.3, 0.5), 100);
     }
 }
+
+// ----------------------------------------------------------------------------
+// 4-2. BGM 譜面
+// 1小節 = 16ステップ(16分音符)。音名は "A4" "C#5" のように書き、"." は休符。
+// length は音の長さ（ステップ数）、vol は音量。
+// ----------------------------------------------------------------------------
+function seq(str) {
+    const names = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+    return str.split(/\s+/).filter(t => t && t !== '|').map(t => {
+        if (t === '.') return null;
+        const m = t.match(/^([A-G])(#?)(\d)$/);
+        return names[m[1]] + (m[2] ? 1 : 0) + (Number(m[3]) + 1) * 12;
+    });
+}
+
+const BGM_TRACKS = {
+    // 通常時: ゆっくりした短調。忍び足のような雰囲気（Am → F → Dm → E）
+    NORMAL: {
+        bpm: 100,
+        parts: [
+            { type: 'triangle', length: 3, vol: 0.6, notes: seq(`
+                A2 . . . A2 . . . E2 . . . G2 . . . | F2 . . . F2 . . . C3 . . . E2 . . .
+                D2 . . . D2 . . . A2 . . . C3 . . . | E2 . . . E2 . . . G#2 . . . B2 . . .`) },
+            { type: 'square', length: 2, vol: 0.12, notes: seq(`
+                A4 . . C5 . . E5 . . . C5 . . . . . | F4 . . A4 . . C5 . . . A4 . . . . .
+                D4 . . F4 . . A4 . . . F4 . . . . . | E4 . . G#4 . . B4 . . . G#4 . . . . .`) }
+        ]
+    },
+    // 見つかった時: 速くて切迫した短調（Am → Am → F → G）
+    CHASE: {
+        bpm: 150,
+        parts: [
+            { type: 'square', length: 1.5, vol: 0.3, notes: seq(`
+                A2 . A3 . A2 . A3 . A2 . A3 . A2 . A3 . | A2 . A3 . A2 . A3 . A2 . A3 . A2 . A3 .
+                F2 . F3 . F2 . F3 . F2 . F3 . F2 . F3 . | G2 . G3 . G2 . G3 . G2 . G3 . G2 . G3 .`) },
+            { type: 'sawtooth', length: 1.5, vol: 0.12, notes: seq(`
+                E5 . E5 . F5 . E5 . D5 . E5 . . . . . | E5 . E5 . F5 . E5 . G5 . F5 . E5 . . .
+                C5 . C5 . D5 . C5 . A4 . C5 . . . . . | D5 . D5 . E5 . F5 . G5 . . . B4 . . .`) },
+            { type: 'square', length: 0.5, vol: 0.05, notes: seq(`
+                . . C7 . . . C7 . . . C7 . . . C7 .`) }
+        ]
+    },
+    // パワーモード: 明るく跳ねる長調（C → F → G → C）
+    POWER: {
+        bpm: 140,
+        parts: [
+            { type: 'triangle', length: 2, vol: 0.6, notes: seq(`
+                C3 . G2 . C3 . G2 . C3 . G2 . C3 . G2 . | F2 . C3 . F2 . C3 . F2 . C3 . F2 . C3 .
+                G2 . D3 . G2 . D3 . G2 . D3 . G2 . D3 . | C3 . G2 . C3 . G2 . C3 . E3 . G3 . . .`) },
+            { type: 'square', length: 1.5, vol: 0.12, notes: seq(`
+                C5 . E5 . G5 . E5 . C6 . . . G5 . . . | A5 . F5 . C5 . F5 . A5 . . . . . . .
+                B5 . G5 . D5 . G5 . B5 . . . D6 . . . | C6 . . . G5 . . . E5 . . . C5 . . .`) }
+        ]
+    }
+};
 
 // ----------------------------------------------------------------------------
 // 5. ACHIEVEMENT MANAGER (実績・通知システム)
@@ -2727,6 +2837,8 @@ class GameEngine {
             this.updateDying(dt);
         }
 
+        this.updateBgm();
+
         // 常に描画は行う
         if (this.maze && this.renderer) {
             this.draw();
@@ -2734,6 +2846,20 @@ class GameEngine {
 
         // キー入力状態の更新
         input.update();
+    }
+
+    /** 状況に合わせて BGM を切り替える（プレイ中以外は止める） */
+    updateBgm() {
+        let name = null;
+        if (this.gameState === 'PLAYING') {
+            // 追跡が一瞬途切れても曲がパタパタ切り替わらないよう、最低3秒は CHASE を続ける
+            const now = performance.now();
+            if (this.ghosts.some(g => g.state === 'CHASE')) this.chaseBgmUntil = now + 3000;
+            if (this.powerModeTimer > 0) name = 'POWER';
+            else if (now < (this.chaseBgmUntil || 0)) name = 'CHASE';
+            else name = 'NORMAL';
+        }
+        audio.setBgm(name);
     }
 
     /** プレイ中のロジック更新 */
