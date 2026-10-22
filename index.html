@@ -1671,7 +1671,7 @@ _handleMovement(dt, inputMgr) {
 // 13. STEALTH GHOST AI SYSTEM (視界、聴覚、巡回状態を持つ統合AI基盤)
 // ----------------------------------------------------------------------------
 class GhostBase {
-    constructor(maze, player, id, type, color, startGridX, startGridY) {
+    constructor(maze, player, id, type, color, startGridX, startGridY, speedMult = 1) {
         this.maze = maze;
         this.player = player;
         this.id = id;
@@ -1693,8 +1693,9 @@ class GhostBase {
         this.viewDistance = 10 * ts;    // 視認距離(ピクセル)
         this.fov = Math.PI / 2;         // 視野角 (90度)
         this.hearingRadius = 4 * ts;    // 足音が聞こえる範囲
-        this.baseSpeed = GAME_CONFIG.GHOST_SPEED_NORMAL * 0.8; // 巡回は少し遅め
-        this.chaseSpeed = GAME_CONFIG.GHOST_SPEED_CHASE * 1.1; // 追跡は早い
+        this.baseSpeed = GAME_CONFIG.GHOST_SPEED_NORMAL * 0.8 * speedMult; // 巡回は少し遅め
+        this.chaseSpeed = GAME_CONFIG.GHOST_SPEED_CHASE * 1.1 * speedMult; // 追跡は早い
+        this.boostTimer = 0; // SIGNAL ドットによる追跡速度アップの残り時間(秒)
         
         this.facingAngle = 0; // ゴーストが向いている方向
         
@@ -1826,6 +1827,7 @@ class GhostBase {
     // --- 状態マシンの更新 ---
     _updateState(dt) {
         this.pathUpdateTimer -= dt;
+        if (this.boostTimer > 0) this.boostTimer -= dt;
 
         switch (this.state) {
             case 'PATROL':
@@ -1833,7 +1835,7 @@ class GhostBase {
                 this._handlePatrol();
                 break;
             case 'CHASE':
-                this.speed = this.chaseSpeed;
+                this.speed = this.chaseSpeed * (this.boostTimer > 0 ? 1.2 : 1);
                 this._handleChase();
                 break;
             case 'INVESTIGATE':
@@ -2011,8 +2013,8 @@ class GhostBase {
  * 視界が非常に長く狭い。マップの外周を時計回りに巡回する兵士。
  */
 class Blinky extends GhostBase {
-    constructor(maze, player, startX, startY) {
-        super(maze, player, 'GHOST_BLINKY', 'GHOST_BLINKY', GAME_CONFIG.GHOST_COLORS.BLINKY, startX, startY);
+    constructor(maze, player, startX, startY, speedMult) {
+        super(maze, player, 'GHOST_BLINKY', 'GHOST_BLINKY', GAME_CONFIG.GHOST_COLORS.BLINKY, startX, startY, speedMult);
         
         const ts = GAME_CONFIG.TILE_SIZE;
         this.viewDistance = 25 * ts; // 超遠距離まで見える
@@ -2037,7 +2039,7 @@ class Blinky extends GhostBase {
  */
 class Pinky extends GhostBase {
     constructor(maze, player, startX, startY, speedMult) {
-        super(maze, player, 'GHOST_PINKY', 'GHOST_PINKY', GAME_CONFIG.GHOST_COLORS.PINKY, startX, startY);
+        super(maze, player, 'GHOST_PINKY', 'GHOST_PINKY', GAME_CONFIG.GHOST_COLORS.PINKY, startX, startY, speedMult);
         
         const ts = GAME_CONFIG.TILE_SIZE;
         this.viewDistance = 8 * ts;  
@@ -2065,7 +2067,7 @@ class Pinky extends GhostBase {
  */
 class Inky extends GhostBase {
     constructor(maze, player, startX, startY, speedMult) {
-        super(maze, player, 'GHOST_INKY', 'GHOST_INKY', GAME_CONFIG.GHOST_COLORS.INKY, startX, startY);
+        super(maze, player, 'GHOST_INKY', 'GHOST_INKY', GAME_CONFIG.GHOST_COLORS.INKY, startX, startY, speedMult);
         
         const ts = GAME_CONFIG.TILE_SIZE;
         this.viewDistance = 6 * ts;  
@@ -2090,8 +2092,8 @@ class Inky extends GhostBase {
  * 挙動不審。巡回ポイントがランダムで、時折立ち止まっては突然振り返ったりする（Investigate状態を自発的に発動）。
  */
 class Clyde extends GhostBase {
-    constructor(maze, player, startX, startY) {
-        super(maze, player, 'GHOST_CLYDE', 'GHOST_CLYDE', GAME_CONFIG.GHOST_COLORS.CLYDE, startX, startY);
+    constructor(maze, player, startX, startY, speedMult) {
+        super(maze, player, 'GHOST_CLYDE', 'GHOST_CLYDE', GAME_CONFIG.GHOST_COLORS.CLYDE, startX, startY, speedMult);
         
         const ts = GAME_CONFIG.TILE_SIZE;
         this.viewDistance = 7 * ts;  
@@ -2463,7 +2465,7 @@ class GameEngine {
                     g.scaredTimer = 0;     
                     g.path = [];           
                     g.pathUpdateTimer = 0; // ★追加：0.3秒待たずに今すぐ計算させる
-                    g.speed = g.chaseSpeed * 1.2; // ★追加：赤ドット時は通常よりさらに速くする
+                    g.boostTimer = 6; // 赤ドット時は6秒間、通常の追跡よりさらに速くする
                 }
             });
             // ★追加：警告音を強制的に鳴らす
@@ -2528,7 +2530,9 @@ class GameEngine {
         this.player.score = this.playerData.score;
         this.player.lives = this.playerData.lives;
 
-        const speedMult = 1.0 + (this.level - 1) * 0.2;
+        // レベルごとにゴーストを5%ずつ速くする。上限1.3倍で追跡速度(約157)が
+        // プレイヤー(160)を超えないようにしている（超えると逃げ切れなくなる）
+        const speedMult = Math.min(1.3, 1.0 + (this.level - 1) * 0.05);
 
         // ハウス内で通れるのは中心のマスだけなので、全員そこから出発する
         // （中心の左右・下は壁なので、そこに置くと壁の中から出てくる）
