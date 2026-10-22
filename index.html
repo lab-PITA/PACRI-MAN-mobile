@@ -1048,10 +1048,9 @@ class Renderer {
         ctx.fillRect(0, h / 2, w, h / 2);
     }
 
-    _castRays(px, py, pa, ctx, cw, ch, zBuf) {
+    /** projDist: 壁や物の高さに使う投影距離（省略時はメイン画面用の値） */
+    _castRays(px, py, pa, ctx, cw, ch, zBuf, projDist = this.projDist) {
         const ts = GAME_CONFIG.TILE_SIZE;
-        // ★修正：resizeで計算した正しい比率を使用
-        const projDist = this.projDist;
 
         for (let i = 0; i < cw; i++) {
             const cameraX = 2 * i / cw - 1;
@@ -1083,9 +1082,11 @@ class Renderer {
     }
 
     /** 8. RENDERER内の描画メソッドを完全に修復 (構文エラー解消版) */
-    _drawSprites(player, entities, ctx, cw, ch, zBuf, viewAngle) {
+    _drawSprites(player, entities, ctx, cw, ch, zBuf, viewAngle, projDist = this.projDist) {
         const ts = GAME_CONFIG.TILE_SIZE;
-        const projDist = (ch * 0.5) / Math.tan(GAME_CONFIG.FOV / 2);
+        // 横位置は _castRays と同じく「画面幅に視野角を割り当てる」計算にする
+        // （高さ用の projDist を使うと、縦長画面で物が壁より外側にずれる）
+        const projDistX = (cw * 0.5) / Math.tan(GAME_CONFIG.FOV / 2);
 
         const sprites = entities.filter(e => e.active).map(e => {
             const dx = e.x - player.x, dy = e.y - player.y;
@@ -1100,7 +1101,7 @@ class Renderer {
         for (const s of sprites) {
             const cosA = Math.cos(s.a); if (cosA <= 0) continue;
             const dist = s.dist * cosA;
-            const sx = (cw / 2) + Math.tan(s.a) * projDist;
+            const sx = (cw / 2) + Math.tan(s.a) * projDistX;
             
             // 視界外または壁の向こう側ならスキップ
             if (sx < 0 || sx >= cw || dist >= zBuf[Math.floor(sx)]) continue;
@@ -1505,7 +1506,8 @@ class FloatingUIManager {
                 const correctedDist = dist * Math.cos(angleToGhost);
                 if (correctedDist <= 0.1) return;
 
-                const screenX = Math.tan(angleToGhost) * projDistance;
+                // 横位置は画面幅基準（Renderer._drawSprites と同じ）
+                const screenX = Math.tan(angleToGhost) * (canvasWidth * 0.5) / Math.tan(fov / 2);
                 const cx = (canvasWidth / 2) + screenX;
                 
                 const ts = GAME_CONFIG.TILE_SIZE;
