@@ -34,6 +34,9 @@
             overflow: hidden;
             width: 100vw;
             height: 100vh;
+            /* スマホのブラウザでは 100vh がツールバーの裏まで含むため、画面下端の
+               ボタンが隠れる。表示中の領域に合わせる dvh を優先する（非対応なら上の vh） */
+            height: 100dvh;
             touch-action: none;
         }
 
