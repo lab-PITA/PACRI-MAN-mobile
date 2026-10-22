@@ -1893,33 +1893,38 @@ class GhostBase {
         if (Math.abs(angleDiff) > this.fov / 2) return false;
 
         // DDA (Digital Differential Analyzer) による壁の遮蔽チェック
+        // ゴーストからプレイヤーへの線が通るマスを1つずつ順にたどる
+        // （以前は半マス刻みで縦横同時に進むことがあり、壁の角の隙間を素通りしていた）
         const ts = GAME_CONFIG.TILE_SIZE;
-        let x0 = this.x;
-        let y0 = this.y;
-        let x1 = this.player.x;
-        let y1 = this.player.y;
-        
-        let rayDx = Math.abs(x1 - x0);
-        let rayDy = Math.abs(y1 - y0);
-        let sx = (x0 < x1) ? 1 : -1;
-        let sy = (y0 < y1) ? 1 : -1;
-        let err = rayDx - rayDy;
+        let mapX = Math.floor(this.x / ts);
+        let mapY = Math.floor(this.y / ts);
+        const targetX = Math.floor(this.player.x / ts);
+        const targetY = Math.floor(this.player.y / ts);
+        if (mapX === targetX && mapY === targetY) return true;
 
-        let safety = 0;
-        while (safety < 100) {
-            safety++;
-            let gx = Math.floor(x0 / ts);
-            let gy = Math.floor(y0 / ts);
-            
-            if (gx === Math.floor(x1 / ts) && gy === Math.floor(y1 / ts)) {
-                return true; 
+        const dirX = dx / dist;
+        const dirY = dy / dist;
+        const deltaX = Math.abs(1 / dirX); // 1マス横に進むのに必要な線の長さ(マス単位)
+        const deltaY = Math.abs(1 / dirY);
+        const stepX = dirX < 0 ? -1 : 1;
+        const stepY = dirY < 0 ? -1 : 1;
+        let sideX = (dirX < 0 ? (this.x / ts - mapX) : (mapX + 1 - this.x / ts)) * deltaX;
+        let sideY = (dirY < 0 ? (this.y / ts - mapY) : (mapY + 1 - this.y / ts)) * deltaY;
+
+        const maxSteps = Math.abs(targetX - mapX) + Math.abs(targetY - mapY) + 2;
+        for (let i = 0; i < maxSteps; i++) {
+            if (Math.abs(sideX - sideY) < 1e-9) {
+                // マスの角をちょうど通る場合: 隣の2マスのどちらかが壁なら遮られる
+                if (this.maze.isWall(mapX + stepX, mapY) || this.maze.isWall(mapX, mapY + stepY)) return false;
+                sideX += deltaX; mapX += stepX;
+                sideY += deltaY; mapY += stepY;
+            } else if (sideX < sideY) {
+                sideX += deltaX; mapX += stepX;
+            } else {
+                sideY += deltaY; mapY += stepY;
             }
-            if (this.maze.isWall(gx, gy)) {
-                return false; 
-            }
-            let e2 = 2 * err;
-            if (e2 > -rayDy) { err -= rayDy; x0 += sx * (ts/2); }
-            if (e2 < rayDx) { err += rayDx; y0 += sy * (ts/2); }
+            if (mapX === targetX && mapY === targetY) return true;
+            if (this.maze.isWall(mapX, mapY)) return false;
         }
         return false;
     }
