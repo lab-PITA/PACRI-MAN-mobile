@@ -1893,7 +1893,7 @@ _handleMovement(dt, inputMgr) {
                 }
                 else if (item.type === 'FREEZE') {
                     this.dotsEaten++;
-                    const time = MathUtils.randomFloat(3, 8); // ★秒数を3〜8秒に修正
+                    const time = MathUtils.randomFloat(1, 5); // 動けなくなる時間は1〜5秒
                     this.freezeTimer = time; 
                     window.dispatchEvent(new CustomEvent('freezeItemEaten', { detail: { time } }));
                 }
@@ -2000,7 +2000,8 @@ class GhostBase {
             const reached = this.lastSeen && this.gridX === this.lastSeen.x && this.gridY === this.lastSeen.y;
             if (this.lostSightTimer > 4.0 || reached) { 
                 this.state = 'INVESTIGATE';
-                this.investigateTimer = 8.0; 
+                // 着いていればその場を少し見回すだけ。まだなら最後に見た位置まで調べに行く
+                this.investigateTimer = reached ? 1.5 : 8.0; 
                 this.investigateTarget = reached ? null : this.lastSeen;
                 this.path = [];
             }
@@ -2164,6 +2165,8 @@ class GhostBase {
             this.path = Pathfinder.getPath(this.maze, this.gridX, this.gridY, this.investigateTarget.x, this.investigateTarget.y);
             if (this.path.length === 0) {
                  this.investigateTarget = null; // 到達または経路なし
+                 // 着いた後に見回すのは最大1.5秒（長いとその場で固まって見える）
+                 this.investigateTimer = Math.min(this.investigateTimer, 1.5);
             }
         }
         
