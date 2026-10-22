@@ -2534,14 +2534,15 @@ class GameEngine {
 
         const speedMult = 1.0 + (this.level - 1) * 0.2;
 
-        // ★修正：new Ghost ではなく、定義した個別クラスを呼び出す
+        // ハウス内で通れるのは中心のマスだけなので、全員そこから出発する
+        // （中心の左右・下は壁なので、そこに置くと壁の中から出てくる）
         const cx = this.maze.ghostHouse.x;
         const cy = this.maze.ghostHouse.y;
         this.ghosts = [
             new Blinky(this.maze, this.player, cx, cy, speedMult),
-            new Pinky(this.maze, this.player, cx - 1, cy, speedMult),
-            new Inky(this.maze, this.player, cx + 1, cy, speedMult),
-            new Clyde(this.maze, this.player, cx, cy + 1, speedMult)
+            new Pinky(this.maze, this.player, cx, cy, speedMult),
+            new Inky(this.maze, this.player, cx, cy, speedMult),
+            new Clyde(this.maze, this.player, cx, cy, speedMult)
         ];
 
         this.renderer = new Renderer(this.maze);
