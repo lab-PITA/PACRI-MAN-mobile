@@ -1712,13 +1712,13 @@ class GhostBase {
         this.gridX = Math.floor(this.x / GAME_CONFIG.TILE_SIZE);
         this.gridY = Math.floor(this.y / GAME_CONFIG.TILE_SIZE);
 
-        this._checkSenses();
+        this._checkSenses(dt);
         this._updateState(dt);
         this._moveAlongPath(dt);
     }
     // --- センサー（視覚と聴覚）の処理 ---
 /** センサーと自主的な判断ロジック */
-    _checkSenses() {
+    _checkSenses(dt) {
         if (this.state === 'EATEN' || this.state === 'SCARED') return;
 
         const canSee = this._checkLineOfSight();
@@ -1731,19 +1731,28 @@ class GhostBase {
             this.state = 'CHASE';
             this.lostSightTimer = 0;
         } else if (this.state === 'CHASE') {
-            this.lostSightTimer += 0.016;
+            this.lostSightTimer += dt;
             // 見失っても、プレイヤーの「予測移動先」に向かって数秒間突っ込む
             if (this.lostSightTimer > 4.0) { 
                 this.state = 'INVESTIGATE';
                 this.investigateTimer = 8.0; 
+                // 最後に向かっていた地点（経路の終点）を調べに行く
+                const last = this.path[this.path.length - 1];
+                this.investigateTarget = last ? new Vector2(last.x, last.y) : null;
             }
         } else if (canHear) {
             // 音がした方へ自主的に調査しに行く
-            this.state = 'INVESTIGATE';
-            this.investigateTarget = new Vector2(
-                Math.floor(this.player.x / GAME_CONFIG.TILE_SIZE),
-                Math.floor(this.player.y / GAME_CONFIG.TILE_SIZE)
-            );
+            const tx = Math.floor(this.player.x / GAME_CONFIG.TILE_SIZE);
+            const ty = Math.floor(this.player.y / GAME_CONFIG.TILE_SIZE);
+            const t = this.investigateTarget;
+            // 音の位置が変わった時だけ経路を引き直す（毎フレーム消すと動けなくなる）
+            if (this.state !== 'INVESTIGATE' || !t || t.x !== tx || t.y !== ty) {
+                this.state = 'INVESTIGATE';
+                this.investigateTarget = new Vector2(tx, ty);
+                this.path = [];
+            }
+            // 聞こえている間は調査を続ける
+            this.investigateTimer = 5.0;
         } else if (this.state === 'PATROL' && Math.random() < 0.005) {
             // ★自主性: 巡回中に「ふと気になって」近くの通路を調べに行く（気まぐれな動き）
             this.state = 'INVESTIGATE';
