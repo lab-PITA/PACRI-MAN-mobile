@@ -2454,10 +2454,6 @@ class GameEngine {
             if(typeof audio !== 'undefined') audio.playTone(400, 'sawtooth', 0.5, 0.8);
         });
 
-        // ★追加：ワープ（オレンジ）の通知を受ける
-        window.addEventListener('warpItemEaten', () => {
-            this._trySafeWarp(); // ここなら正常に動きます
-        });
         // ★追加：位置バレアイテム（赤）を食べた時
         // ★修正：位置バレアイテム（赤）を食べた時の処理
         window.addEventListener('signalItemEaten', () => {
