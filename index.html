@@ -202,6 +202,49 @@
             z-index: 500;
             transition: opacity 0.1s;
         }
+
+        /* --- スコア表示（パワーモード終了時に戻す色と合わせる） --- */
+        .status-value-yellow { color: #ff0; text-shadow: 0 0 10px #ff0; }
+
+        /* --- 走査線（ブラウン管風） --- */
+        .scanlines {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: repeating-linear-gradient(to bottom, rgba(0, 0, 0, 0) 0, rgba(0, 0, 0, 0) 2px, rgba(0, 0, 0, 0.25) 3px);
+            pointer-events: none;
+            z-index: 20;
+        }
+
+        /* --- 頭上の「！」マークの点滅 --- */
+        @keyframes pulse {
+            from { opacity: 1; }
+            to { opacity: 0.4; }
+        }
+
+        /* --- 実績の通知 --- */
+        #achievement-container {
+            position: absolute;
+            top: 10px; left: 50%;
+            transform: translateX(-50%);
+            display: flex; flex-direction: column; gap: 6px;
+            pointer-events: none;
+            z-index: 1100;
+        }
+        .achievement-toast {
+            display: flex; align-items: center; gap: 10px;
+            padding: 8px 14px;
+            background: rgba(0, 10, 20, 0.9);
+            border: 1px solid #0ff;
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.4);
+            color: #fff;
+            font-size: 13px;
+            white-space: nowrap;
+            opacity: 0;
+            transform: translateY(-20px);
+            transition: opacity 0.5s, transform 0.5s;
+        }
+        .achievement-toast.show { opacity: 1; transform: translateY(0); }
+        .achievement-icon { font-size: 22px; }
 </style>
 </head>
 <body>
