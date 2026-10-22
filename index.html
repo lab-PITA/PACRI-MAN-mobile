@@ -2042,8 +2042,8 @@ class GhostBase {
         while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
         while (angleDiff >= Math.PI) angleDiff -= 2 * Math.PI;
 
-        // 視野角の範囲内かチェック
-        if (Math.abs(angleDiff) > this.fov / 2) return false;
+        // 視野角の範囲内かチェック（1マス以内なら向きに関係なく気配で気づく）
+        if (Math.abs(angleDiff) > this.fov / 2 && dist >= GAME_CONFIG.TILE_SIZE) return false;
 
         // DDA (Digital Differential Analyzer) による壁の遮蔽チェック
         // ゴーストからプレイヤーへの線が通るマスを1つずつ順にたどる
@@ -2221,6 +2221,23 @@ class GhostBase {
 
     // --- 移動と物理処理 ---
     _moveAlongPath(dt) {
+        // 追跡中にプレイヤーと同じマスに入ると経路が空になり、マスの端で止まってしまう
+        // （立ち止まったプレイヤーに届かず目の前で固まる）。同じマスなら本人へ直進する。
+        // 同じマスの中なので、まっすぐ進んでも壁にはぶつからない
+        if (this.path.length === 0 && this.state === 'CHASE' &&
+            this.gridX === Math.floor(this.player.x / GAME_CONFIG.TILE_SIZE) &&
+            this.gridY === Math.floor(this.player.y / GAME_CONFIG.TILE_SIZE)) {
+            const dx = this.player.x - this.x;
+            const dy = this.player.y - this.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist > 1) {
+                const step = Math.min(dist, this.speed * dt);
+                this.facingAngle = Math.atan2(dy, dx);
+                this.x += dx / dist * step;
+                this.y += dy / dist * step;
+            }
+            return;
+        }
         if (this.path.length === 0) return;
 
         const ts = GAME_CONFIG.TILE_SIZE;
