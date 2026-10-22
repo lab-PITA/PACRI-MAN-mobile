@@ -2082,7 +2082,7 @@ class GhostBase {
     }
 
     _checkHearing() {
-        if (!this.player.makingNoise) return false;
+        if (!this.player.makingNoise || this.hearingRadius <= 0) return false;
         const dist = MathUtils.distance(this.x, this.y, this.player.x, this.player.y);
         return dist <= this.hearingRadius;
     }
@@ -2839,9 +2839,14 @@ class GameEngine {
             // 0秒・3秒・6秒・9秒の時間差でハウスから出す
             g.releaseDelay = i * 3;
             g.releaseTimer = g.releaseDelay;
-            // レベル1〜2は見える距離・聞こえる距離を7割にして易しくする
+            // レベル1〜2は見える距離を7割にして易しくする
             if (this.level <= 2) {
                 g.viewDistance *= 0.7;
+            }
+            // 聴覚はレベル3まではなし。レベル4からは各ゴーストの基本値の7割
+            if (this.level <= 3) {
+                g.hearingRadius = 0;
+            } else {
                 g.hearingRadius *= 0.7;
             }
         });
