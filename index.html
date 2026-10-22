@@ -1752,11 +1752,21 @@ class GhostBase {
         this.investigateTarget = null;
         this.investigateTimer = 0;
         this.lostSightTimer = 0;
+        this.lastSeen = null; // 最後にプレイヤーを見た（グリッド）位置
         this.pathUpdateTimer = 0;
+
+        this.releaseDelay = 0; // ハウスから出るまでの待ち時間(秒)。initLevel で設定
+        this.releaseTimer = 0;
     }
 
     update(dt) {
         if (!this.active) return;
+
+        // 出撃待ちの間はハウスの中でじっとしている
+        if (this.releaseTimer > 0) {
+            this.releaseTimer -= dt;
+            return;
+        }
         
         this.gridX = Math.floor(this.x / GAME_CONFIG.TILE_SIZE);
         this.gridY = Math.floor(this.y / GAME_CONFIG.TILE_SIZE);
@@ -1779,15 +1789,20 @@ class GhostBase {
             }
             this.state = 'CHASE';
             this.lostSightTimer = 0;
+            this.lastSeen = new Vector2(
+                Math.floor(this.player.x / GAME_CONFIG.TILE_SIZE),
+                Math.floor(this.player.y / GAME_CONFIG.TILE_SIZE)
+            );
         } else if (this.state === 'CHASE') {
             this.lostSightTimer += dt;
-            // 見失っても、プレイヤーの「予測移動先」に向かって数秒間突っ込む
-            if (this.lostSightTimer > 4.0) { 
+            // 見失ったら最後に見た位置へ向かう（_handleChase）。
+            // そこに着くか4秒経ったら、その周辺の調査に切り替える
+            const reached = this.lastSeen && this.gridX === this.lastSeen.x && this.gridY === this.lastSeen.y;
+            if (this.lostSightTimer > 4.0 || reached) { 
                 this.state = 'INVESTIGATE';
                 this.investigateTimer = 8.0; 
-                // 最後に向かっていた地点（経路の終点）を調べに行く
-                const last = this.path[this.path.length - 1];
-                this.investigateTarget = last ? new Vector2(last.x, last.y) : null;
+                this.investigateTarget = reached ? null : this.lastSeen;
+                this.path = [];
             }
         } else if (canHear) {
             // 音がした方へ自主的に調査しに行く
@@ -1918,10 +1933,14 @@ class GhostBase {
     }
 
     _handleChase() {
-        // プレイヤーの現在位置をターゲットに0.3秒ごとに経路更新
+        // 見えている間はプレイヤーの現在位置、見失ったら最後に見た位置へ。0.3秒ごとに経路更新
         if (this.pathUpdateTimer <= 0) {
-            const px = Math.floor(this.player.x / GAME_CONFIG.TILE_SIZE);
-            const py = Math.floor(this.player.y / GAME_CONFIG.TILE_SIZE);
+            let px = Math.floor(this.player.x / GAME_CONFIG.TILE_SIZE);
+            let py = Math.floor(this.player.y / GAME_CONFIG.TILE_SIZE);
+            if (this.lostSightTimer > 0 && this.lastSeen) {
+                px = this.lastSeen.x;
+                py = this.lastSeen.y;
+            }
             this.path = Pathfinder.getPath(this.maze, this.gridX, this.gridY, px, py);
             this.pathUpdateTimer = 0.3;
         }
@@ -2065,13 +2084,14 @@ class Blinky extends GhostBase {
         this.hearingRadius = 2 * ts; // 耳はあまり良くない
 
         // マップの外周四隅を巡回ルートに設定
+        // 最初はプレイヤーのスタート地点(左上)と反対の右下へ向かう
         const w = maze.width;
         const h = maze.height;
         this.patrolNodes = [
-            { x: 1, y: 1 },
-            { x: w - 2, y: 1 },
             { x: w - 2, y: h - 2 },
-            { x: 1, y: h - 2 }
+            { x: 1, y: h - 2 },
+            { x: 1, y: 1 },
+            { x: w - 2, y: 1 }
         ];
     }
 }
@@ -2087,7 +2107,7 @@ class Pinky extends GhostBase {
         const ts = GAME_CONFIG.TILE_SIZE;
         this.viewDistance = 8 * ts;  
         this.fov = Math.PI / 2;      
-        this.hearingRadius = 8 * ts; 
+        this.hearingRadius = 4 * ts; 
 
         // マップの内側を逆時計回りに巡回
         const w = maze.width;
@@ -2165,6 +2185,7 @@ class Clyde extends GhostBase {
 
     update(dt) {
         super.update(dt);
+        if (this.releaseTimer > 0) return;
         
         // 巡回中に突然立ち止まって警戒モードに入る独自ロジック
         if (this.state === 'PATROL') {
@@ -2506,6 +2527,11 @@ class GameEngine {
                 if (g.state !== 'EATEN') {
                     g.state = 'CHASE';      
                     g.scaredTimer = 0;     
+                    // 食べた瞬間の位置がバレる（以降は見えない限りそこへ向かう）
+                    g.lastSeen = new Vector2(
+                        Math.floor(this.player.x / GAME_CONFIG.TILE_SIZE),
+                        Math.floor(this.player.y / GAME_CONFIG.TILE_SIZE)
+                    );
                     g.path = [];           
                     g.pathUpdateTimer = 0; // ★追加：0.3秒待たずに今すぐ計算させる
                     g.boostTimer = 6; // 赤ドット時は6秒間、通常の追跡よりさらに速くする
@@ -2587,6 +2613,16 @@ class GameEngine {
             new Inky(this.maze, this.player, cx, cy, speedMult),
             new Clyde(this.maze, this.player, cx, cy, speedMult)
         ];
+        this.ghosts.forEach((g, i) => {
+            // 0秒・3秒・6秒・9秒の時間差でハウスから出す
+            g.releaseDelay = i * 3;
+            g.releaseTimer = g.releaseDelay;
+            // レベル1〜2は見える距離・聞こえる距離を7割にして易しくする
+            if (this.level <= 2) {
+                g.viewDistance *= 0.7;
+                g.hearingRadius *= 0.7;
+            }
+        });
 
         // Renderer は resize リスナーを登録するので、毎レベル作り直さず使い回す
         if (this.renderer) this.renderer.maze = this.maze;
@@ -2793,6 +2829,10 @@ class GameEngine {
             g.y = g.startY;
             g.state = 'PATROL';
             g.path = [];
+            g.releaseTimer = g.releaseDelay;
+            g.currentPatrolIndex = 0;
+            g.lastSeen = null;
+            g.investigateTarget = null;
         });
         
         this.powerModeTimer = 0;
