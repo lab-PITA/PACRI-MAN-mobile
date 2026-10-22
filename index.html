@@ -141,6 +141,36 @@
         }
         #btn-turn-l { right: 105px; } /* 左回転ボタン */
         #btn-turn-r { right: 25px; }  /* 右回転ボタン */
+
+        /* 一時停止ボタン：下エリアの中央下 */
+        #btn-pause {
+            position: absolute;
+            bottom: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80px;
+            height: 36px;
+            background: rgba(0, 255, 255, 0.1);
+            border: 2px solid #0ff;
+            color: #0ff;
+            border-radius: 18px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 14px;
+            letter-spacing: 2px;
+            z-index: 100;
+        }
+
+        /* 一時停止画面（3Dビューの上に重ねる） */
+        #pause-screen {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 10, 20, 0.75);
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            gap: 24px;
+            z-index: 2000;
+        }
         /* HUD：残機を左、スコアを右に */
         #status-container {
             position: absolute;
@@ -317,6 +347,15 @@
         <!-- 90度回転ボタン -->
         <div id="btn-turn-l" class="turn-btn" onclick="return false;">◀</div>
         <div id="btn-turn-r" class="turn-btn" onclick="return false;">▶</div>
+
+        <!-- 一時停止ボタン -->
+        <div id="btn-pause">II</div>
+    </div>
+
+    <!-- 一時停止画面 -->
+    <div id="pause-screen" class="hidden">
+        <div class="title-glow">PAUSED</div>
+        <button id="btn-resume" class="btn-start">RESUME</button>
     </div>
 
     <!-- スタート画面 -->
@@ -2658,6 +2697,23 @@ class GameEngine {
                 this.bootSequence();
             }, { passive: false });
         });
+        // 一時停止・再開（スタートボタンと同じく click と touchstart の両方で受ける）
+        this.ui.pauseScreen = document.getElementById('pause-screen');
+        ['click', 'touchstart'].forEach(type => {
+            document.getElementById('btn-pause').addEventListener(type, (e) => {
+                e.preventDefault();
+                if (this.gameState === 'PAUSED') this.resumeGame(); else this.pauseGame();
+            }, { passive: false });
+            document.getElementById('btn-resume').addEventListener(type, (e) => {
+                e.preventDefault();
+                this.resumeGame();
+            }, { passive: false });
+        });
+        // 他のアプリに切り替えた時なども自動で一時停止する
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) this.pauseGame();
+        });
+
         window.addEventListener('powerPelletEaten', () => this.triggerPowerMode());
         
         window.addEventListener('jammingItemEaten', () => {
@@ -2846,6 +2902,26 @@ class GameEngine {
 
         // キー入力状態の更新
         input.update();
+    }
+
+    /** 一時停止（プレイ中のみ。死亡演出やレベル表示中は止めない） */
+    pauseGame() {
+        if (this.gameState !== 'PLAYING') return;
+        this.gameState = 'PAUSED';
+        this.ui.pauseScreen.classList.remove('hidden');
+        document.getElementById('btn-pause').innerText = '▶';
+    }
+
+    /** 一時停止から再開 */
+    resumeGame() {
+        if (this.gameState !== 'PAUSED') return;
+        audio.resume();
+        // 停止中に押された回転ボタンは無効にする
+        input.turnLeftTrigger = false;
+        input.turnRightTrigger = false;
+        this.gameState = 'PLAYING';
+        this.ui.pauseScreen.classList.add('hidden');
+        document.getElementById('btn-pause').innerText = 'II';
     }
 
     /** 状況に合わせて BGM を切り替える（プレイ中以外は止める） */
