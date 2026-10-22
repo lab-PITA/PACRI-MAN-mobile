@@ -2643,8 +2643,7 @@ class GameEngine {
         this.gameState = 'INIT';
         if (this.director) this.director.resetForLevel(this.level);
         
-        // レベル1は19x19、レベルごとに2マスずつ広げて最大27x27
-        const baseSize = 19;
+        const baseSize = 15;
         const sizeIncrease = Math.min(8, (this.level - 1) * 2);
         this.maze = new MazeEngine(baseSize + sizeIncrease, baseSize + sizeIncrease);
         this.maze.buildLevel(this.level);
