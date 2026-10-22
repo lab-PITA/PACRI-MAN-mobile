@@ -351,6 +351,11 @@ class MathUtils {
         return Math.floor(Math.random() * (max - min + 1)) + min;
     }
 
+    /** 指定範囲のランダムな小数を生成 */
+    static randomFloat(min, max) {
+        return Math.random() * (max - min) + min;
+    }
+
     /** 配列からランダムな要素を取得 */
     static randomChoice(arr) {
         return arr[Math.floor(Math.random() * arr.length)];
