@@ -82,16 +82,15 @@
     display: block;
 }
 
-/* レーダー：コントロールエリアの背景として大きく表示 */
-/* レーダー：上部に移動し、範囲を限定 */
-        /* レーダー：下のエリアの「中央」に配置 */
+        /* レーダー：下のエリアの上部中央に、迷路全体を表示する。
+           高さは最大150px。画面が低い時は回転ボタン(下から130px)に被らない大きさまで縮める */
         #radar-container {
             position: absolute;
-            top: 35%; /* 下エリアの中央付近 */
-            left: 47%;
-            transform: translate(-50%, -50%);
-            width: 110px; /* ボタンと被らないよう少しコンパクトに */
-            height: 110px;
+            top: 12px;
+            left: 50%;
+            transform: translateX(-50%);
+            height: min(150px, calc(100% - 145px));
+            aspect-ratio: 1 / 1;
             opacity: 1.0;
             z-index: 10;
             border: 2px solid #0ff;
@@ -396,6 +395,8 @@ const GAME_CONFIG = {
     FOV: Math.PI / 2.5,     // 視野角 (約72度)
     RENDER_RAY_COUNT: 300,  // レンダリング解像度（負荷と画質のバランス）
     MAX_DEPTH: 12,          // 描画距離（これ以上遠くは暗闇）
+    RADAR_SWEEP_SEC: 2.5,   // レーダーのスイープが1周する秒数（ゴーストの点はこの間隔でしか更新されない）
+    GHOST_XRAY_TILES: 4,    // このマス数以内のゴーストは壁越しに半透明で見える
     
     // プレイヤー設定
     PLAYER_SPEED: 160,      // 移動速度 (ピクセル/秒)
@@ -1214,8 +1215,9 @@ class Renderer {
         this.mainCanvas.height = this.h;
         this.zBuffer = new Float32Array(this.w);
         
-        this.radarCanvas.width = 120;
-        this.radarCanvas.height = 120;
+        // 迷路全体を描くので内部解像度は高め（表示は CSS で縮小）
+        this.radarCanvas.width = 300;
+        this.radarCanvas.height = 300;
 
         
         this.projDist = (this.h * 0.5) / Math.tan(GAME_CONFIG.FOV / 2);    }
@@ -1301,14 +1303,24 @@ class Renderer {
             const dist = s.dist * cosA;
             const sx = (cw / 2) + Math.tan(s.a) * projDistX;
             
-            // 視界外または壁の向こう側ならスキップ
-            if (sx < 0 || sx >= cw || dist >= zBuf[Math.floor(sx)]) continue;
+            // 視界外ならスキップ
+            if (sx < 0 || sx >= cw) continue;
+            // 壁の向こう側は描かない。ただし近いゴーストだけは半透明で透けて見える
+            let xray = false;
+            if (dist >= zBuf[Math.floor(sx)]) {
+                if (!s.e.type.startsWith('GHOST') || s.dist > GAME_CONFIG.GHOST_XRAY_TILES * ts) continue;
+                xray = true;
+            }
             
             const size = (ts / dist) * projDist;
             const scale = s.e.type === 'DOT' ? 0.2 : s.e.type === 'POWER' ? 0.4 : 0.8;
             const ds = size * scale;
             const b = Math.max(0, 1 - dist / (GAME_CONFIG.MAX_DEPTH * ts));
             ctx.globalAlpha = b * 0.8;
+            if (xray) {
+                // 近いほど濃く（最大0.5、範囲の端で0.1）。大きさで距離も分かる
+                ctx.globalAlpha = 0.1 + 0.4 * (1 - s.dist / (GAME_CONFIG.GHOST_XRAY_TILES * ts));
+            }
             const cy = ch / 2;
             
             const itemTypes = ['DOT', 'POWER', 'JAMMING', 'SIGNAL', 'FREEZE', 'HYBRID', 'WARP'];
@@ -1375,56 +1387,87 @@ class Renderer {
     }
 
 
-    /** UI: プロキシミティ・レーダーの歪み修正版 (内部解像度に合わせる) */
+    /**
+     * UI: ソナー式レーダー。迷路全体を表示し、ゴーストはスイープ線が通った瞬間の
+     * 位置にだけ点で表示する（その後は次の1周に向けて薄れていく）
+     */
     _drawRadar(player, entities) {
         const ctx = this.radarCtx;
-        const w = this.radarCanvas.width; // 180
-        const h = this.radarCanvas.height; // 180
+        const w = this.radarCanvas.width;
+        const h = this.radarCanvas.height;
         const ts = GAME_CONFIG.TILE_SIZE;
+        const maze = this.maze;
         ctx.clearRect(0, 0, w, h);
-        
-        // 縦横共通のスケールを使用
-        const scale = 15; 
-        const offX = (w / 2) - (player.x / ts) * scale;
-        const offY = (h / 2) - (player.y / ts) * scale;
+
+        // 迷路全体が収まる縮尺（縦横共通）で中央に配置
+        const scale = Math.min(w / maze.width, h / maze.height);
+        const offX = (w - maze.width * scale) / 2;
+        const offY = (h - maze.height * scale) / 2;
+        const toX = px => offX + (px / ts) * scale;
+        const toY = py => offY + (py / ts) * scale;
 
         // 壁の描画
         ctx.fillStyle = 'rgba(0, 255, 255, 0.4)';
-        for (let y = 0; y < this.maze.height; y++) {
-            for (let x = 0; x < this.maze.width; x++) {
-                if (this.maze.grid[y][x] === 1) {
-                    const dx = offX + x * scale;
-                    const dy = offY + y * scale;
-                    // キャンバスの範囲内のみ描画
-                    if (dx > -scale && dx < w && dy > -scale && dy < h) {
-                        ctx.fillRect(dx, dy, scale + 0.5, scale + 0.5);
-                    }
+        for (let y = 0; y < maze.height; y++) {
+            for (let x = 0; x < maze.width; x++) {
+                if (maze.grid[y][x] === 1) {
+                    ctx.fillRect(offX + x * scale, offY + y * scale, scale + 0.5, scale + 0.5);
                 }
             }
         }
 
-        // ゴーストの描画
+        // スイープ線の角度（プレイヤーを中心に時計回り）
+        const now = performance.now();
+        const period = GAME_CONFIG.RADAR_SWEEP_SEC * 1000;
+        const sweep = (now % period) / period * Math.PI * 2;
+        const prevSweep = this.prevSweep ?? sweep;
+        this.prevSweep = sweep;
+        // レベルが変わったら前の迷路の点は消す
+        if (this.blipMaze !== maze) { this.radarBlips = new Map(); this.blipMaze = maze; }
+
+        const cx = toX(player.x), cy = toY(player.y);
+
+        // スイープ線が今フレームで通過したゴーストの位置を記録する
         entities.forEach(e => {
             if (!e.active || !e.type.startsWith('GHOST')) return;
-            const gx = offX + (e.x / ts) * scale;
-            const gy = offY + (e.y / ts) * scale;
-            if (gx > 0 && gx < w && gy > 0 && gy < h) {
-                ctx.fillStyle = e.state === 'SCARED' ? '#00f' : '#f00';
-                ctx.beginPath(); 
-                ctx.arc(gx, gy, 4, 0, Math.PI * 2); 
-                ctx.fill();
-            }
+            const a = MathUtils.normalizeAngle(Math.atan2(e.y - player.y, e.x - player.x));
+            const crossed = prevSweep <= sweep ? (a > prevSweep && a <= sweep) : (a > prevSweep || a <= sweep);
+            if (crossed) this.radarBlips.set(e.id, { x: e.x, y: e.y, time: now, scared: e.state === 'SCARED' });
         });
 
-        // プレイヤーの描画 (中央に固定)
+        // スイープ線と、後ろに残る薄い扇形
+        const radius = Math.hypot(w, h);
+        for (let i = 0; i < 12; i++) {
+            const a0 = sweep - (i + 1) * 0.05, a1 = sweep - i * 0.05;
+            ctx.fillStyle = `rgba(0, 255, 120, ${0.18 * (1 - i / 12)})`;
+            ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, radius, a0, a1); ctx.closePath(); ctx.fill();
+        }
+        ctx.strokeStyle = 'rgba(0, 255, 120, 0.8)';
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(cx, cy);
+        ctx.lineTo(cx + Math.cos(sweep) * radius, cy + Math.sin(sweep) * radius); ctx.stroke();
+
+        // ゴーストの点（記録した時点の位置。1周かけて薄れていく）
+        const dotR = Math.max(3, scale * 0.45);
+        this.radarBlips.forEach(b => {
+            const alpha = 1 - (now - b.time) / period;
+            if (alpha <= 0) return;
+            ctx.globalAlpha = alpha;
+            ctx.fillStyle = b.scared ? '#00f' : '#f00';
+            ctx.beginPath(); ctx.arc(toX(b.x), toY(b.y), dotR, 0, Math.PI * 2); ctx.fill();
+        });
+        ctx.globalAlpha = 1;
+
+        // プレイヤーの描画（向きの分かる矢印）
+        const ps = Math.max(1, scale / 10);
         ctx.save();
-        ctx.translate(w / 2, h / 2);
+        ctx.translate(cx, cy);
         ctx.rotate(player.angle);
         ctx.fillStyle = '#0f0';
         ctx.beginPath();
-        ctx.moveTo(8, 0); 
-        ctx.lineTo(-6, -5); 
-        ctx.lineTo(-6, 5);
+        ctx.moveTo(8 * ps, 0); 
+        ctx.lineTo(-6 * ps, -5 * ps); 
+        ctx.lineTo(-6 * ps, 5 * ps);
         ctx.closePath();
         ctx.fill();
         ctx.restore();
