@@ -396,7 +396,8 @@ const GAME_CONFIG = {
     RENDER_RAY_COUNT: 300,  // レンダリング解像度（負荷と画質のバランス）
     MAX_DEPTH: 12,          // 描画距離（これ以上遠くは暗闇）
     RADAR_SWEEP_SEC: 2.5,   // レーダーのスイープが1周する秒数（ゴーストの点はこの間隔でしか更新されない）
-    GHOST_XRAY_TILES: 4,    // このマス数以内のゴーストは壁越しに半透明で見える
+    GHOST_XRAY_TILES: 7,    // このマス数以内のゴーストは壁越しに半透明で見える
+    RADAR_VIEW_TILES: 11,   // レーダーに映す範囲（プレイヤーを中心に横何マス分か）
     
     // プレイヤー設定
     PLAYER_SPEED: 160,      // 移動速度 (ピクセル/秒)
@@ -1388,8 +1389,8 @@ class Renderer {
 
 
     /**
-     * UI: ソナー式レーダー。迷路全体を表示し、ゴーストはスイープ線が通った瞬間の
-     * 位置にだけ点で表示する（その後は次の1周に向けて薄れていく）
+     * UI: ソナー式レーダー。プレイヤーを中心に RADAR_VIEW_TILES マス分を表示し、
+     * ゴーストはスイープ線が通った瞬間の位置にだけ点で表示する（その後は次の1周に向けて薄れていく）
      */
     _drawRadar(player, entities) {
         const ctx = this.radarCtx;
@@ -1399,10 +1400,10 @@ class Renderer {
         const maze = this.maze;
         ctx.clearRect(0, 0, w, h);
 
-        // 迷路全体が収まる縮尺（縦横共通）で中央に配置
-        const scale = Math.min(w / maze.width, h / maze.height);
-        const offX = (w - maze.width * scale) / 2;
-        const offY = (h - maze.height * scale) / 2;
+        // プレイヤーが中央に来るようにスクロールする（縦横共通の縮尺）
+        const scale = w / GAME_CONFIG.RADAR_VIEW_TILES;
+        const offX = (w / 2) - (player.x / ts) * scale;
+        const offY = (h / 2) - (player.y / ts) * scale;
         const toX = px => offX + (px / ts) * scale;
         const toY = py => offY + (py / ts) * scale;
 
@@ -1410,8 +1411,11 @@ class Renderer {
         ctx.fillStyle = 'rgba(0, 255, 255, 0.4)';
         for (let y = 0; y < maze.height; y++) {
             for (let x = 0; x < maze.width; x++) {
-                if (maze.grid[y][x] === 1) {
-                    ctx.fillRect(offX + x * scale, offY + y * scale, scale + 0.5, scale + 0.5);
+                const dx = offX + x * scale;
+                const dy = offY + y * scale;
+                // キャンバスの範囲内のみ描画
+                if (maze.grid[y][x] === 1 && dx > -scale && dx < w && dy > -scale && dy < h) {
+                    ctx.fillRect(dx, dy, scale + 0.5, scale + 0.5);
                 }
             }
         }
@@ -1459,7 +1463,7 @@ class Renderer {
         ctx.globalAlpha = 1;
 
         // プレイヤーの描画（向きの分かる矢印）
-        const ps = Math.max(1, scale / 10);
+        const ps = scale / 15; // 元のレーダー(1マス15px)と同じ見た目の比率
         ctx.save();
         ctx.translate(cx, cy);
         ctx.rotate(player.angle);
