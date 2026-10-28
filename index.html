@@ -1216,12 +1216,30 @@ class Renderer {
         this.mainCanvas.height = this.h;
         this.zBuffer = new Float32Array(this.w);
         
-        // 迷路全体を描くので内部解像度は高め（表示は CSS で縮小）
+        // レーダーの内部解像度は高め（表示は CSS で縮小）
         this.radarCanvas.width = 300;
         this.radarCanvas.height = 300;
 
-        
-        this.projDist = (this.h * 0.5) / Math.tan(GAME_CONFIG.FOV / 2);    }
+        // 壁や物の大きさの基準。ツールバーの出し入れで 3D の縮尺が変わらないよう、
+        // 実際の高さではなく _scaleReferenceHeight の高さで決める
+        this.projDist = (this._scaleReferenceHeight(area) * 1.5 * 0.5) / Math.tan(GAME_CONFIG.FOV / 2);
+    }
+
+    /**
+     * 3D の縮尺の基準にする高さ。画面の高さを 100dvh（ツールバーを除いた高さ）に
+     * したことで 3D 画面が低くなり、壁や物が小さく見えるようになったため、
+     * 以前と同じくツールバーを隠した時の高さ(100lvh)から計算する
+     */
+    _scaleReferenceHeight(area) {
+        if (!this.lvhProbe) {
+            const probe = document.createElement('div');
+            probe.style.cssText = 'position:fixed;top:0;left:0;width:0;height:100vh;height:100lvh;visibility:hidden;pointer-events:none;';
+            document.body.appendChild(probe);
+            this.lvhProbe = probe;
+        }
+        // 3D 画面は全体の60%（下40%が操作エリア）から下枠2pxを引いた高さ
+        return Math.max(area.clientHeight, this.lvhProbe.clientHeight * 0.6 - 2);
+    }
 
     render(player, entities) {
         // 前方描画
@@ -3259,8 +3277,8 @@ class GameEngine {
         if (area) {
             const dw = area.clientWidth; 
             const dh = area.clientHeight;
-            // 廊下の広さ調整に使用している「0.5」を使って正確に位置を合わせます
-            const uiProjDist = (dh * 0.5) / Math.tan(GAME_CONFIG.FOV / 2);
+            // 3D 描画と同じ縮尺（Renderer は1.5倍の解像度で描いているので戻す）
+            const uiProjDist = this.renderer.projDist / 1.5;
 
             this.uiManager.update(
                 this.player, 
