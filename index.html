@@ -374,6 +374,7 @@
         <div style="color: #0ff; text-align: center; line-height: 1.8; margin-bottom: 40px; font-size: 14px;">
             左スティック：前進・後退<br>
             右ボタン：視点旋回<br>
+            画面を左右にスワイプ：横をのぞく<br>
             <span style="color: #888; font-size: 12px;">全てのドットを回収して脱出せよ</span>
         </div>
 
@@ -499,10 +500,16 @@ class InputMgr {
         this.touchIdStick = null;
         this.stickStartPos = { y: 0 };
 
+        // 3D 画面の横スワイプで横をのぞく（指を離すと正面に戻る）
+        this.touchIdLook = null;
+        this.lookStartX = 0;
+        this.lookOffset = 0; // のぞく角度（ラジアン、右が正。最大±90度）
+
         // タッチイベントの登録
         window.addEventListener('touchstart', (e) => this._handleTouch(e), { passive: false });
         window.addEventListener('touchmove', (e) => this._handleTouch(e), { passive: false });
         window.addEventListener('touchend', (e) => this._handleTouch(e), { passive: false });
+        window.addEventListener('touchcancel', (e) => this._handleTouch(e), { passive: false });
     }
 
     _handleTouch(e) {
@@ -517,8 +524,31 @@ class InputMgr {
                     this.stickY = 0;
                     document.getElementById('joystick-stick').style.transform = 'translate(-50%, -50%)';
                 }
+                if (t.identifier === this.touchIdLook) {
+                    this.touchIdLook = null;
+                    this.lookOffset = 0;
+                }
             }
             return;
+        }
+
+        // 3D 画面に新しく触れた指を「のぞき」用として記録する
+        if (e.type === 'touchstart' && this.touchIdLook === null) {
+            for (let t of e.changedTouches) {
+                const el = document.elementFromPoint(t.clientX, t.clientY);
+                if (el && el.id === 'main-canvas') {
+                    this.touchIdLook = t.identifier;
+                    this.lookStartX = t.clientX;
+                    break;
+                }
+            }
+        }
+        // 画面幅の半分なぞると90度（真横）
+        for (let t of e.touches) {
+            if (t.identifier !== this.touchIdLook) continue;
+            const halfW = document.getElementById('view-area').clientWidth * 0.5;
+            const ratio = Math.max(-1, Math.min(1, (t.clientX - this.lookStartX) / halfW));
+            this.lookOffset = ratio * Math.PI / 2;
         }
 
         const stickRect = document.getElementById('joystick-container').getBoundingClientRect();
@@ -1244,14 +1274,15 @@ class Renderer {
     render(player, entities) {
         // 前方描画
         this._drawFloorAndCeiling(this.ctx, this.w, this.h);
-        this._castRays(player.x, player.y, player.angle, this.ctx, this.w, this.h, this.zBuffer);
-        this._drawSprites(player, entities, this.ctx, this.w, this.h, this.zBuffer, player.angle);
+        const viewAngle = player.viewAngle ?? player.angle;
+        this._castRays(player.x, player.y, viewAngle, this.ctx, this.w, this.h, this.zBuffer);
+        this._drawSprites(player, entities, this.ctx, this.w, this.h, this.zBuffer, viewAngle);
         this._drawRadar(player, entities);
 
         // 後方カメラ（向いている方向の真後ろ）
         const rw = this.rearCanvas.width;
         const rh = this.rearCanvas.height;
-        const rearAngle = MathUtils.normalizeAngle(player.angle + Math.PI);
+        const rearAngle = MathUtils.normalizeAngle(viewAngle + Math.PI);
         this._drawFloorAndCeiling(this.rearCtx, rw, rh);
         this._castRays(player.x, player.y, rearAngle, this.rearCtx, rw, rh, this.rearZBuffer, this.rearProjDist);
         this._drawSprites(player, entities, this.rearCtx, rw, rh, this.rearZBuffer, rearAngle, this.rearProjDist);
@@ -1749,7 +1780,7 @@ class FloatingUIManager {
                 return;
             }
 
-            let angleToGhost = Math.atan2(dy, dx) - player.angle;
+            let angleToGhost = Math.atan2(dy, dx) - (player.viewAngle ?? player.angle);
             while (angleToGhost < -Math.PI) angleToGhost += 2 * Math.PI;
             while (angleToGhost >= Math.PI) angleToGhost -= 2 * Math.PI;
 
@@ -1823,6 +1854,12 @@ class Player {
 	this.freezeTimer = 0;
         this.dotsEaten = 0;
         this.headBobTimer = 0;
+        this.lookAngle = 0; // 進行方向からどれだけ横を向いているか（スワイプでのぞく）
+    }
+
+    /** 実際に見ている方向（描画用）。移動は angle / targetAngle のまま */
+    get viewAngle() {
+        return this.angle + this.lookAngle;
     }
 
     update(dt, inputMgr, particles) {
@@ -1834,6 +1871,7 @@ class Player {
         this._handleRotation(dt, inputMgr); // 視点変更（回転）は常に可能
         this._handleMovement(dt, inputMgr); // この中で移動を制限します
         this._applyHeadBob(dt);
+        this._updateLook(dt, inputMgr);
         this._checkItemCollisions(particles);
     }
           _handleRotation(dt, inputMgr) {
@@ -1911,6 +1949,16 @@ _handleMovement(dt, inputMgr) {
                 // 上下移動中は、左右の位置を中央に寄せる
                 this.x += (centerX - this.x) * snapSpeed;
             }
+        }
+    }
+
+    _updateLook(dt, inputMgr) {
+        if (inputMgr.touchIdLook !== null) {
+            // スワイプ中は指にそのまま追従
+            this.lookAngle = inputMgr.lookOffset;
+        } else {
+            // 指を離したら0.2秒ほどで正面に戻る
+            this.lookAngle -= this.lookAngle * Math.min(1, 15 * dt);
         }
     }
 
@@ -3171,6 +3219,7 @@ class GameEngine {
         this.player.z = ts / 2;
         this.player.angle = 0;
         this.player.targetAngle = 0;
+        this.player.lookAngle = 0;
         
         this.ghosts.forEach(g => {
             g.x = g.startX;
