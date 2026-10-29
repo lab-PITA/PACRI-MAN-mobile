@@ -143,6 +143,7 @@
         }
         #btn-turn-l { right: 105px; } /* 左回転ボタン */
         #btn-turn-r { right: 25px; }  /* 右回転ボタン */
+        .turn-btn.pressed { background: rgba(0, 255, 255, 0.35); box-shadow: 0 0 15px #0ff; }
 
         /* 一時停止ボタン：下エリアの中央下 */
         #btn-pause {
@@ -373,7 +374,7 @@
         <!-- 操作説明 -->
         <div style="color: #0ff; text-align: center; line-height: 1.8; margin-bottom: 40px; font-size: 14px;">
             左スティック：前進・後退<br>
-            右ボタン：視点旋回<br>
+            右ボタン：タップで90度回転 / 長押しでその方向をのぞく<br>
             画面を左右にスワイプ：横をのぞく<br>
             <span style="color: #888; font-size: 12px;">全てのドットを回収して脱出せよ</span>
         </div>
@@ -505,6 +506,10 @@ class InputMgr {
         this.lookStartX = 0;
         this.lookOffset = 0; // のぞく角度（ラジアン、右が正。最大±90度）
 
+        // 回転ボタン: 短く押して離すと90度回転、長押しするとその方向をのぞく
+        this.turnPress = null; // 押している回転ボタン { id: 指, dir: -1(左)/1(右), time: 押した時刻, el }
+        this.peekDir = 0;      // 長押しでのぞいている方向（-1/0/1）
+
         // タッチイベントの登録
         window.addEventListener('touchstart', (e) => this._handleTouch(e), { passive: false });
         window.addEventListener('touchmove', (e) => this._handleTouch(e), { passive: false });
@@ -528,8 +533,29 @@ class InputMgr {
                     this.touchIdLook = null;
                     this.lookOffset = 0;
                 }
+                if (this.turnPress && t.identifier === this.turnPress.id) {
+                    // 長押しになる前に離したら回転、長押し中だったらのぞきを終える
+                    if (this.peekDir === 0) {
+                        if (this.turnPress.dir < 0) this.turnLeftTrigger = true; else this.turnRightTrigger = true;
+                    }
+                    this.turnPress.el.classList.remove('pressed');
+                    this.turnPress = null;
+                    this.peekDir = 0;
+                }
             }
             return;
+        }
+
+        // 回転ボタンに触れた指を記録する（回転するかのぞくかは離した時・押し続けた時間で決める）
+        if (e.type === 'touchstart' && this.turnPress === null) {
+            for (let t of e.changedTouches) {
+                const el = document.elementFromPoint(t.clientX, t.clientY);
+                if (el && (el.id === 'btn-turn-l' || el.id === 'btn-turn-r')) {
+                    this.turnPress = { id: t.identifier, dir: el.id === 'btn-turn-l' ? -1 : 1, time: performance.now(), el };
+                    el.classList.add('pressed');
+                    break;
+                }
+            }
         }
 
         // 3D 画面に新しく触れた指を「のぞき」用として記録する
@@ -554,15 +580,6 @@ class InputMgr {
         const stickRect = document.getElementById('joystick-container').getBoundingClientRect();
         
         for (let t of e.touches) {
-            // 回転ボタンのタップ判定
-            if (e.type === 'touchstart') {
-                const el = document.elementFromPoint(t.clientX, t.clientY);
-                if (el) {
-                    if (el.id === 'btn-turn-l') { this.turnLeftTrigger = true; continue; }
-                    if (el.id === 'btn-turn-r') { this.turnRightTrigger = true; continue; }
-                }
-            }
-
             // ジョイスティックの移動判定（縦のみ）
             const isInsideStickArea = (t.clientX >= stickRect.left && t.clientX <= stickRect.right && t.clientY >= stickRect.top && t.clientY <= stickRect.bottom);
             
@@ -582,7 +599,12 @@ class InputMgr {
         }
     }
 
-    update() {}
+    /** 毎フレーム呼ばれる。回転ボタンを0.25秒以上押し続けたら、その方向をのぞく */
+    update() {
+        if (this.turnPress && this.peekDir === 0 && performance.now() - this.turnPress.time >= 250) {
+            this.peekDir = this.turnPress.dir;
+        }
+    }
     isDown(code) { return !!this.keys[code]; }
     isJustPressed(code) { return !!this.keys[code]; }
 }
@@ -1957,8 +1979,9 @@ _handleMovement(dt, inputMgr) {
             // スワイプ中は指にそのまま追従
             this.lookAngle = inputMgr.lookOffset;
         } else {
-            // 指を離したら0.2秒ほどで正面に戻る
-            this.lookAngle -= this.lookAngle * Math.min(1, 15 * dt);
+            // 回転ボタン長押し中はその方向の真横へ、それ以外は正面へ、0.2秒ほどで向く
+            const target = inputMgr.peekDir * Math.PI / 2;
+            this.lookAngle += (target - this.lookAngle) * Math.min(1, 15 * dt);
         }
     }
 
