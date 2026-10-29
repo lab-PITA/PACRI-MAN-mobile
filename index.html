@@ -400,6 +400,7 @@ const GAME_CONFIG = {
     RADAR_SWEEP_SEC: 2.5,   // レーダーのスイープが1周する秒数（ゴーストの点はこの間隔でしか更新されない）
     GHOST_XRAY_TILES: 7,    // このマス数以内のゴーストは壁越しに半透明で見える
     RADAR_VIEW_TILES: 11,   // レーダーに映す範囲（プレイヤーを中心に横何マス分か）
+    PEEK_ANGLE_DEG: 45,     // 回転ボタン長押しでのぞく角度（度）
     
     // プレイヤー設定
     PLAYER_SPEED: 160,      // 移動速度 (ピクセル/秒)
@@ -1979,8 +1980,8 @@ _handleMovement(dt, inputMgr) {
             // スワイプ中は指にそのまま追従
             this.lookAngle = inputMgr.lookOffset;
         } else {
-            // 回転ボタン長押し中はその方向の真横へ、それ以外は正面へ、0.2秒ほどで向く
-            const target = inputMgr.peekDir * Math.PI / 2;
+            // 回転ボタン長押し中はその方向へ PEEK_ANGLE_DEG 度、それ以外は正面へ、0.2秒ほどで向く
+            const target = inputMgr.peekDir * MathUtils.degToRad(GAME_CONFIG.PEEK_ANGLE_DEG);
             this.lookAngle += (target - this.lookAngle) * Math.min(1, 15 * dt);
         }
     }
