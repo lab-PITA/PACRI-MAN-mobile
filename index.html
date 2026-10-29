@@ -82,14 +82,14 @@
     display: block;
 }
 
-        /* レーダー：下のエリアの上部中央に、迷路全体を表示する。
-           高さは最大150px。画面が低い時は回転ボタン(下から130px)に被らない大きさまで縮める */
+        /* レーダー：下のエリアの上部中央に表示する。
+           高さは最大150px。画面が低い時はスティック・視点パッド(下から140px)に被らない大きさまで縮める */
         #radar-container {
             position: absolute;
             top: 12px;
             left: 50%;
             transform: translateX(-50%);
-            height: min(150px, calc(100% - 145px));
+            height: min(150px, calc(100% - 160px));
             aspect-ratio: 1 / 1;
             opacity: 1.0;
             z-index: 10;
@@ -100,16 +100,16 @@
         }
         #radar-canvas { width: 100%; height: 100%; }
 
-        /* ジョイスティック：左端に配置 */
+        /* 左：十字スティック（上下=前進・後退、左右=90度回転） */
         #joystick-container {
             position: absolute;
-            bottom: 70px;
-            left: 25px;
-            width: 60px;
-            height: 150px;
+            bottom: 20px;
+            left: 12px;
+            width: 120px;
+            height: 120px;
             background: rgba(0, 255, 255, 0.05);
-            border: 2px solid rgba(0, 255, 255, 0.2);
-            border-radius: 30px;
+            border: 2px solid rgba(0, 255, 255, 0.25);
+            border-radius: 50%;
             z-index: 100;
         }
         #joystick-stick {
@@ -123,26 +123,55 @@
             transform: translate(-50%, -50%);
             box-shadow: 0 0 15px #0ff;
         }
-
-        /* 回転ボタン：右側に寄せて配置 */
-        .turn-btn {
+        /* スティック・パッドの方向の目印 */
+        .pad-hint {
             position: absolute;
-            bottom: 60px; /* マップの下端に合わせる */
-            width: 70px;
-            height: 70px;
-            background: rgba(0, 255, 255, 0.1);
-            border: 2px solid #0ff;
-            color: #0ff;
-            border-radius: 50%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            font-size: 24px;
-            z-index: 100;
-            pointer-events: auto;
+            color: rgba(0, 255, 255, 0.45);
+            font-size: 12px;
+            line-height: 1;
+            pointer-events: none;
         }
-        #btn-turn-l { right: 105px; } /* 左回転ボタン */
-        #btn-turn-r { right: 25px; }  /* 右回転ボタン */
+        .pad-hint.up    { top: 6px;    left: 50%; transform: translateX(-50%); }
+        .pad-hint.down  { bottom: 6px; left: 50%; transform: translateX(-50%); }
+        .pad-hint.left  { left: 6px;   top: 50%;  transform: translateY(-50%); }
+        .pad-hint.right { right: 6px;  top: 50%;  transform: translateY(-50%); }
+
+        /* 右：視点パッド（左右にずらすとその方向をのぞく。離すと正面に戻る） */
+        #look-pad {
+            position: absolute;
+            bottom: 20px;
+            right: 12px;
+            width: 120px;
+            height: 120px;
+            background: rgba(0, 255, 255, 0.05);
+            border: 2px solid rgba(0, 255, 255, 0.25);
+            border-radius: 50%;
+            z-index: 100;
+        }
+        #look-pad-knob {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 44px;
+            height: 44px;
+            border: 2px solid #0ff;
+            background: rgba(0, 255, 255, 0.15);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.6);
+            pointer-events: none;
+        }
+        #look-pad .pad-label {
+            position: absolute;
+            bottom: -16px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 9px;
+            letter-spacing: 1px;
+            color: rgba(0, 255, 255, 0.6);
+            white-space: nowrap;
+            pointer-events: none;
+        }
 
         /* 一時停止ボタン：下エリアの中央下 */
         #btn-pause {
@@ -343,12 +372,20 @@
 
         <!-- 縦型スティック -->
         <div id="joystick-container">
+            <span class="pad-hint up">▲</span>
+            <span class="pad-hint down">▼</span>
+            <span class="pad-hint left">↺</span>
+            <span class="pad-hint right">↻</span>
             <div id="joystick-stick"></div>
         </div>
 
-        <!-- 90度回転ボタン -->
-        <div id="btn-turn-l" class="turn-btn" onclick="return false;">◀</div>
-        <div id="btn-turn-r" class="turn-btn" onclick="return false;">▶</div>
+        <!-- 視点パッド -->
+        <div id="look-pad">
+            <span class="pad-hint left">◀</span>
+            <span class="pad-hint right">▶</span>
+            <div id="look-pad-knob"></div>
+            <div class="pad-label">LOOK</div>
+        </div>
 
         <!-- 一時停止ボタン -->
         <div id="btn-pause">II</div>
@@ -372,9 +409,8 @@
 
         <!-- 操作説明 -->
         <div style="color: #0ff; text-align: center; line-height: 1.8; margin-bottom: 40px; font-size: 14px;">
-            左スティック：前進・後退<br>
-            右ボタン：視点旋回<br>
-            画面を左右にスワイプ：横をのぞく<br>
+            左スティック：上下で前進・後退 / 左右で90度回転<br>
+            右パッド・画面のスワイプ：左右をのぞく<br>
             <span style="color: #888; font-size: 12px;">全てのドットを回収して脱出せよ</span>
         </div>
 
@@ -497,13 +533,17 @@ class InputMgr {
         this.turnLeftTrigger = false;
         this.turnRightTrigger = false;
         
+        // 左の十字スティック（触れた位置が中心。上下=前後、左右=90度回転）
         this.touchIdStick = null;
-        this.stickStartPos = { y: 0 };
+        this.stickStart = { x: 0, y: 0 };
+        this.turnLatched = false; // 一度倒して回転したら、中央付近に戻すまで次の回転はしない
 
-        // 3D 画面の横スワイプで横をのぞく（指を離すと正面に戻る）
+        // 横をのぞく指（右の視点パッド、または 3D 画面のスワイプ。離すと正面に戻る）
         this.touchIdLook = null;
         this.lookStartX = 0;
-        this.lookOffset = 0; // のぞく角度（ラジアン、右が正。最大±90度）
+        this.lookRangePx = 1;  // この距離なぞると90度
+        this.lookFromPad = false;
+        this.lookOffset = 0;   // のぞく角度（ラジアン、右が正。最大±90度）
 
         // タッチイベントの登録
         window.addEventListener('touchstart', (e) => this._handleTouch(e), { passive: false });
@@ -514,7 +554,6 @@ class InputMgr {
 
     _handleTouch(e) {
         if (e.cancelable) e.preventDefault();
-        const stickMax = 70; // 縦方向の最大移動量
 
         // 指を離した時の処理
         if (e.type === 'touchend' || e.type === 'touchcancel') {
@@ -522,64 +561,83 @@ class InputMgr {
                 if (t.identifier === this.touchIdStick) {
                     this.touchIdStick = null;
                     this.stickY = 0;
+                    this.turnLatched = false;
                     document.getElementById('joystick-stick').style.transform = 'translate(-50%, -50%)';
                 }
                 if (t.identifier === this.touchIdLook) {
                     this.touchIdLook = null;
                     this.lookOffset = 0;
+                    document.getElementById('look-pad-knob').style.transform = 'translate(-50%, -50%)';
                 }
             }
             return;
         }
 
-        // 3D 画面に新しく触れた指を「のぞき」用として記録する
-        if (e.type === 'touchstart' && this.touchIdLook === null) {
+        // 新しく触れた指を、触れた場所に応じてスティック用・のぞき用に割り当てる
+        if (e.type === 'touchstart') {
+            const stickRect = document.getElementById('joystick-container').getBoundingClientRect();
+            const padRect = document.getElementById('look-pad').getBoundingClientRect();
+            const inside = (t, r) => t.clientX >= r.left && t.clientX <= r.right && t.clientY >= r.top && t.clientY <= r.bottom;
             for (let t of e.changedTouches) {
-                const el = document.elementFromPoint(t.clientX, t.clientY);
-                if (el && el.id === 'main-canvas') {
+                if (this.touchIdStick === null && inside(t, stickRect)) {
+                    this.touchIdStick = t.identifier;
+                    this.stickStart = { x: t.clientX, y: t.clientY };
+                    continue;
+                }
+                if (this.touchIdLook !== null) continue;
+                if (inside(t, padRect)) {
+                    // 視点パッド: パッドの半径ぶんずらすと90度
                     this.touchIdLook = t.identifier;
                     this.lookStartX = t.clientX;
-                    break;
+                    this.lookRangePx = padRect.width * 0.5;
+                    this.lookFromPad = true;
+                    continue;
                 }
-            }
-        }
-        // 画面幅の半分なぞると90度（真横）
-        for (let t of e.touches) {
-            if (t.identifier !== this.touchIdLook) continue;
-            const halfW = document.getElementById('view-area').clientWidth * 0.5;
-            const ratio = Math.max(-1, Math.min(1, (t.clientX - this.lookStartX) / halfW));
-            this.lookOffset = ratio * Math.PI / 2;
-        }
-
-        const stickRect = document.getElementById('joystick-container').getBoundingClientRect();
-        
-        for (let t of e.touches) {
-            // 回転ボタンのタップ判定
-            if (e.type === 'touchstart') {
                 const el = document.elementFromPoint(t.clientX, t.clientY);
-                if (el) {
-                    if (el.id === 'btn-turn-l') { this.turnLeftTrigger = true; continue; }
-                    if (el.id === 'btn-turn-r') { this.turnRightTrigger = true; continue; }
+                if (el && el.id === 'main-canvas') {
+                    // 3D 画面: 画面幅の半分なぞると90度
+                    this.touchIdLook = t.identifier;
+                    this.lookStartX = t.clientX;
+                    this.lookRangePx = document.getElementById('view-area').clientWidth * 0.5;
+                    this.lookFromPad = false;
                 }
             }
+        }
 
-            // ジョイスティックの移動判定（縦のみ）
-            const isInsideStickArea = (t.clientX >= stickRect.left && t.clientX <= stickRect.right && t.clientY >= stickRect.top && t.clientY <= stickRect.bottom);
-            
-            if (this.touchIdStick === null && isInsideStickArea && e.type === 'touchstart') {
-                this.touchIdStick = t.identifier;
-                this.stickStartPos.y = t.clientY;
-            } else if (t.identifier === this.touchIdStick) {
-                const dy = t.clientY - this.stickStartPos.y;
-                const dist = Math.max(-stickMax, Math.min(stickMax, dy));
-                
-                // ★速度の微調整: 0.65を掛けてプレイヤーが速すぎないように制限
-                this.stickY = -(dist / stickMax) * 1;
-                
-                // 見た目のスティックを縦にだけ動かす
-                document.getElementById('joystick-stick').style.transform = `translate(-50%, calc(-50% + ${dist}px))`;
+        for (let t of e.touches) {
+            if (t.identifier === this.touchIdStick) this._updateStick(t);
+            if (t.identifier === this.touchIdLook) {
+                const ratio = Math.max(-1, Math.min(1, (t.clientX - this.lookStartX) / this.lookRangePx));
+                this.lookOffset = ratio * Math.PI / 2;
+                if (this.lookFromPad) {
+                    // パッドのつまみは横にだけ動かす
+                    document.getElementById('look-pad-knob').style.transform = `translate(calc(-50% + ${ratio * 38}px), -50%)`;
+                }
             }
         }
+    }
+
+    /** 十字スティック: 上下の倒し具合で前進・後退、左右に大きく倒すと90度回転 */
+    _updateStick(t) {
+        const max = 40; // つまみが動ける最大距離(px)
+        let dx = t.clientX - this.stickStart.x;
+        let dy = t.clientY - this.stickStart.y;
+        const len = Math.sqrt(dx * dx + dy * dy);
+        if (len > max) { dx = dx / len * max; dy = dy / len * max; }
+
+        // 前後: 少しの縦ブレでは動かないよう2割の遊びを持たせる
+        this.stickY = Math.abs(dy) > max * 0.2 ? -dy / max : 0;
+
+        // 回転: 横に6割以上、かつ横寄り（真横から約55度以内）に倒した時に1回だけ
+        const horizontal = Math.abs(dx) >= max * 0.6 && Math.abs(dx) > Math.abs(dy) * 0.7;
+        if (horizontal && !this.turnLatched) {
+            if (dx < 0) this.turnLeftTrigger = true; else this.turnRightTrigger = true;
+            this.turnLatched = true;
+        } else if (Math.abs(dx) < max * 0.3) {
+            this.turnLatched = false;
+        }
+
+        document.getElementById('joystick-stick').style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
     }
 
     update() {}
